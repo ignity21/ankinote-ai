@@ -17,7 +17,7 @@ class AIServiceConfig:
     """Centralized default AI configuration."""
 
     text_model_id: str = "deepseek/deepseek-v4-flash"
-    image_model_id: str = "gemini/gemini-2.5-flash-image"
+    image_model_id: str = "gemini/gemini-3.1-flash-lite-image"
     image_size: int = 512
 
 
