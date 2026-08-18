@@ -120,7 +120,7 @@ class WordGenerator:
         self,
         tts_service: SpeechSynthesizer,
         text_service: TextGenerationService,
-        image_service: ImageGenerationService,
+        image_service: ImageGenerationService | None,
         text_model_id: str,
     ) -> None:
         self._text_service = text_service
@@ -164,11 +164,13 @@ class WordGenerator:
                     tg.create_task(self._generate_audio(example.sentence, target_lang))
                     for example in word_model.examples
                 ]
-                image_tasks = {
-                    idx: tg.create_task(self._generate_image(word_model.lemma, sense))
-                    for idx, sense in enumerate(senses)
-                    if sense.is_visualizable
-                }
+                image_tasks: dict[int, asyncio.Task[bytes]] = {}
+                if self._image_service is not None:
+                    image_tasks = {
+                        idx: tg.create_task(self._generate_image(word_model.lemma, sense))
+                        for idx, sense in enumerate(senses)
+                        if sense.is_visualizable
+                    }
         except* Exception as exc_group:
             for sub_exc in exc_group.exceptions:
                 logger.error(

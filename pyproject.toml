@@ -24,6 +24,7 @@ dependencies = [
     "google-cloud-texttospeech>=2.31.0",
     "litellm>=1.81.9",
     "loguru>=0.7.3",
+    "nicegui>=2.14.0",
     "pillow>=12.1.0",
     "pydantic>=2.12.5",
     "python-dotenv>=1.1.1",
@@ -32,6 +33,7 @@ dependencies = [
 
 [project.scripts]
 ankinote = "ankinote.cli.main:main"
+ankinote-gui = "ankinote.ui.main:start_gui"
 
 [project.urls]
 Homepage = "https://github.com/ignity21/ankinote-ai"

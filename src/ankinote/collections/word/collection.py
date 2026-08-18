@@ -49,7 +49,7 @@ class WordCollection:
         deck_name: str = "AINote::Words",
         text_model_id: str,
         text_service: TextGenerationService,
-        image_service: ImageGenerationService,
+        image_service: ImageGenerationService | None,
     ) -> None:
         self.notetype_name = notetype_name
         self.deck_name = deck_name
