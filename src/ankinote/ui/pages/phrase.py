@@ -1,15 +1,14 @@
-"""Word card page — generate vocabulary cards via AI and push to Anki."""
+"""Phrase and idiom card page — generate expression cards and push to Anki."""
 
 import asyncio
-import re
 from typing import Literal
 
 from nicegui import ui
 
 from ankinote.app import Application
-from ankinote.collections.word import WordCollection
+from ankinote.collections.phrase import PhraseCollection
 from ankinote.consts import Language
-from ankinote.services.ai import LiteLLMTextService, LiteLLMGeminiImageService
+from ankinote.services.ai import LiteLLMTextService
 from ankinote.services.anki import AnkiConnectClient
 from ankinote.ui.config import (
     CUSTOM_API_KEY_STORAGE_KEY,
@@ -18,23 +17,11 @@ from ankinote.ui.config import (
     apply_env,
     load_settings,
 )
+from ankinote.ui.pages.word import format_error
 
 
-_ERROR_MESSAGE_RE = re.compile(r'"message"\s*:\s*"([^"]+)"')
-
-
-def format_error(exc: Exception) -> str:
-    """Collapse a (possibly multi-line, JSON-y) exception into one readable line."""
-    text = str(exc)
-    match = _ERROR_MESSAGE_RE.search(text)
-    if match:
-        return match.group(1)
-    collapsed = " ".join(text.split())
-    return collapsed if len(collapsed) <= 200 else collapsed[:200] + "…"
-
-
-def word_page() -> None:
-    """Render the word card generation page."""
+def phrase_page() -> None:
+    """Render the phrase and idiom card generation page."""
 
     settings = load_settings()
     apply_env(settings)
@@ -50,18 +37,22 @@ def word_page() -> None:
 
     language_options = [lang.value for lang in Language]
 
-    # -- Form ----------------------------------------------------------------
     with ui.column().classes("w-full max-w-2xl mx-auto p-6 gap-4"):
-        ui.label("Word Cards").classes("text-2xl font-bold")
+        with ui.row().classes("items-center gap-2"):
+            ui.badge("Expression", color="indigo").props("outline")
+            ui.label("Phrase & Idiom Cards").classes("text-2xl font-bold")
+        ui.label(
+            "Capture reusable expressions and idioms with meanings, examples, and audio."
+        ).classes("text-sm text-gray-500 -mt-3")
 
-        word_input = ui.input(
-            label="Word",
-            placeholder="Enter a single word (e.g. apple)",
+        phrase_input = ui.input(
+            label="Phrase or idiom",
+            placeholder="Enter one expression (e.g. look forward to)",
         ).classes("w-full")
 
         batch_textarea = ui.textarea(
-            label="Batch Words (optional)",
-            placeholder="One word per line:\napple\nbanana\ncherry",
+            label="Batch phrases and idioms (optional)",
+            placeholder="One expression per line:\nlook forward to\nonce in a blue moon",
         ).classes("w-full")
         batch_textarea.props("autogrow")
 
@@ -78,13 +69,8 @@ def word_page() -> None:
                 value=settings.defaults.target_language,
             ).classes("flex-1")
 
-        generate_image_switch = ui.switch(
-            "Generate images",
-            value=settings.defaults.generate_image,
-        )
-
         parallelism_select = ui.select(
-            label="Parallel words",
+            label="Parallel expressions",
             options={
                 1: "1 at a time",
                 2: "2 at a time",
@@ -97,14 +83,12 @@ def word_page() -> None:
             "Higher values finish batches sooner but use more provider capacity."
         ).classes("text-xs text-gray-500 -mt-3")
 
-        # -- Results area ----------------------------------------------------
         results_container = ui.column().classes("w-full gap-2")
         status_label = ui.label("").classes("text-sm text-gray-500")
 
-        # -- Generate button -------------------------------------------------
         generate_btn = (
             ui.button(
-                "Generate",
+                "Generate expression cards",
                 on_click=lambda: asyncio.ensure_future(_generate()),
                 icon="auto_awesome",
             )
@@ -112,26 +96,27 @@ def word_page() -> None:
             .classes("w-full")
         )
 
-        async def _generate():
-            # Re-read from disk so a Settings change made after this page
-            # loaded (e.g. in another tab) is picked up on every click.
+        async def _generate() -> None:
             settings = load_settings()
             apply_env(settings)
 
-            single = (word_input.value or "").strip()
+            single = (phrase_input.value or "").strip()
             batch_text = (batch_textarea.value or "").strip()
-            words: list[str] = []
+            expressions: list[str] = []
             if single:
-                words.append(single)
+                expressions.append(single)
             if batch_text:
-                words.extend(w.strip() for w in batch_text.splitlines() if w.strip())
-            if not words:
-                _notify("Enter at least one word", "warning")
+                expressions.extend(
+                    expression.strip()
+                    for expression in batch_text.splitlines()
+                    if expression.strip()
+                )
+            if not expressions:
+                _notify("Enter at least one phrase or idiom", "warning")
                 return
 
             native = native_select.value
             target = target_select.value
-            generate_image = generate_image_switch.value
             parallelism = int(parallelism_select.value or 1)
 
             generate_btn.props("loading")
@@ -139,26 +124,18 @@ def word_page() -> None:
             status_label.text = ""
             results_container.clear()
 
-            # Build card placeholders
             placeholders: list[tuple[ui.card, ui.label]] = []
             with results_container:
-                for word in words:
+                for expression in expressions:
                     card = ui.card().classes("w-full p-2 text-sm")
                     with card:
-                        lbl = ui.label(f"⏳ {word} — generating...")
-                    placeholders.append((card, lbl))
+                        label = ui.label(f"⏳ {expression} — generating...")
+                    placeholders.append((card, label))
 
             status_label.text = (
-                f"Generating {len(words)} word(s), up to {parallelism} at a time…"
+                f"Generating {len(expressions)} expression(s), "
+                f"up to {parallelism} at a time…"
             )
-
-            image_service = None
-            if generate_image:
-                image_service = LiteLLMGeminiImageService(
-                    model_id=settings.image_model,
-                    image_size=settings.image_size,
-                    api_key=settings.api_keys.get("GEMINI_API_KEY") or None,
-                )
 
             custom_profile = settings.custom_providers.get(settings.provider)
             if settings.provider == CUSTOM_PROVIDER and custom_profile is None:
@@ -180,50 +157,51 @@ def word_page() -> None:
 
             try:
                 async with Application():
-                    client = AnkiConnectClient()
-                    async with WordCollection(
-                        client,
+                    anki_client = AnkiConnectClient()
+                    async with PhraseCollection(
+                        anki_client,
                         native_language=Language(native),
                         target_language=Language(target),
                         text_model_id=settings.text_model,
                         text_service=text_service,
-                        image_service=image_service,
                     ) as collection:
                         semaphore = asyncio.Semaphore(parallelism)
 
                         async def _generate_one(
-                            index: int, word: str
+                            index: int, expression: str
                         ) -> tuple[int, Exception | None]:
                             async with semaphore:
                                 try:
-                                    await collection.generate_and_add_note(word)
+                                    await collection.generate_and_add_note(expression)
                                 except Exception as exc:
                                     return index, exc
                             return index, None
 
                         tasks = [
-                            asyncio.create_task(_generate_one(index, word))
-                            for index, word in enumerate(words)
+                            asyncio.create_task(_generate_one(index, expression))
+                            for index, expression in enumerate(expressions)
                         ]
                         for task in asyncio.as_completed(tasks):
                             index, error = await task
-                            card, lbl = placeholders[index]
-                            word = words[index]
+                            card, label = placeholders[index]
+                            expression = expressions[index]
                             if error is None:
-                                lbl.set_text(f"✓ {word} — added to Anki")
-                                lbl.classes("text-green-700 dark:text-green-400")
+                                label.set_text(f"✓ {expression} — added to Anki")
+                                label.classes("text-green-700 dark:text-green-400")
                                 card.classes(add="bg-green-50 dark:bg-green-900/20")
                                 success_count += 1
                             else:
-                                lbl.set_text(f"✗ {word} — {format_error(error)}")
-                                lbl.classes("text-red-700 dark:text-red-400")
+                                label.set_text(
+                                    f"✗ {expression} — {format_error(error)}"
+                                )
+                                label.classes("text-red-700 dark:text-red-400")
                                 card.classes(add="bg-red-50 dark:bg-red-900/20")
                                 fail_count += 1
 
-                    total = len(words)
+                    total = len(expressions)
                     if fail_count == 0:
                         status_label.text = (
-                            f"✅ All {total} word(s) generated successfully!"
+                            f"✅ All {total} expression(s) generated successfully!"
                         )
                         _notify("All done!", "positive")
                     else:

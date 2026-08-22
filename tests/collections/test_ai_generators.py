@@ -209,13 +209,17 @@ async def test_sentence_generator_uses_unified_text_service():
     )
 
     model = await generator.generate_sentence_data(
-        "This is a test.",
-        Language.ENGLISH,
-        Language.CHINESE_S,
+        target_sentence="This is a test.",
+        target_lang=Language.ENGLISH,
+        native_lang=Language.CHINESE_S,
     )
 
     assert model.target_sentence == "This is a test."
     assert text_service.calls[0]["model_id"] == "sentence-model"
+    assert (
+        "Target sentence: This is a test."
+        in text_service.calls[0]["messages"][1]["content"]
+    )
 
 
 @pytest.mark.asyncio

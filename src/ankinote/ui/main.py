@@ -2,6 +2,8 @@
 
 from nicegui import ui
 
+from ankinote.ui.pages.phrase import phrase_page
+from ankinote.ui.pages.sentence import sentence_page
 from ankinote.ui.pages.settings import settings_page
 from ankinote.ui.pages.word import word_page
 
@@ -11,18 +13,21 @@ def _create_layout() -> None:
     # Header
     with ui.header(elevated=True).classes("items-center justify-between px-4"):
         ui.label("ankinote").classes("text-lg font-bold")
-        with ui.row().classes("items-center gap-2"):
-            # Anki connection status indicator
-            status_badge = ui.badge(
-                "Anki: ?", color="grey"
-            ).props("outline").classes("text-xs")
 
     # Left drawer (navigation)
     with ui.left_drawer(value=True).classes("bg-gray-50 dark:bg-gray-900"):
-        ui.label("Navigation").classes("text-sm font-semibold text-gray-500 px-4 pt-4 pb-2")
+        ui.label("Navigation").classes(
+            "text-sm font-semibold text-gray-500 px-4 pt-4 pb-2"
+        )
 
         with ui.column().classes("w-full gap-1 px-2"):
             ui.link("📝  Word Cards", "/").classes(
+                "w-full px-3 py-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+            )
+            ui.link("💬  Phrase & Idiom Cards", "/phrases").classes(
+                "w-full px-3 py-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+            )
+            ui.link("💭  Sentence Cards", "/sentences").classes(
                 "w-full px-3 py-2 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
             )
             ui.link("⚙️  Settings", "/settings").classes(
@@ -39,16 +44,25 @@ def _create_layout() -> None:
             on_change=lambda e: dark.set_value(e.value),
         ).classes("px-4")
 
-    # Footer
-    with ui.footer().classes("text-xs text-gray-400 justify-center"):
-        ui.label("Powered by ankinote — AI-powered Anki card generator")
-
-
 @ui.page("/")
 def _word_page() -> None:
     """Word card generation page."""
     _create_layout()
     word_page()
+
+
+@ui.page("/phrases")
+def _phrase_page() -> None:
+    """Phrase and idiom card generation page."""
+    _create_layout()
+    phrase_page()
+
+
+@ui.page("/sentences")
+def _sentence_page() -> None:
+    """Sentence card generation page."""
+    _create_layout()
+    sentence_page()
 
 
 @ui.page("/settings")

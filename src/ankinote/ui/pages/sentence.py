@@ -1,15 +1,14 @@
-"""Word card page — generate vocabulary cards via AI and push to Anki."""
+"""Sentence card page — generate production cards and push to Anki."""
 
 import asyncio
-import re
 from typing import Literal
 
 from nicegui import ui
 
 from ankinote.app import Application
-from ankinote.collections.word import WordCollection
+from ankinote.collections.sentence import SentenceCollection
 from ankinote.consts import Language
-from ankinote.services.ai import LiteLLMTextService, LiteLLMGeminiImageService
+from ankinote.services.ai import LiteLLMTextService
 from ankinote.services.anki import AnkiConnectClient
 from ankinote.ui.config import (
     CUSTOM_API_KEY_STORAGE_KEY,
@@ -18,23 +17,11 @@ from ankinote.ui.config import (
     apply_env,
     load_settings,
 )
+from ankinote.ui.pages.word import format_error
 
 
-_ERROR_MESSAGE_RE = re.compile(r'"message"\s*:\s*"([^"]+)"')
-
-
-def format_error(exc: Exception) -> str:
-    """Collapse a (possibly multi-line, JSON-y) exception into one readable line."""
-    text = str(exc)
-    match = _ERROR_MESSAGE_RE.search(text)
-    if match:
-        return match.group(1)
-    collapsed = " ".join(text.split())
-    return collapsed if len(collapsed) <= 200 else collapsed[:200] + "…"
-
-
-def word_page() -> None:
-    """Render the word card generation page."""
+def sentence_page() -> None:
+    """Render the sentence production-card generation page."""
 
     settings = load_settings()
     apply_env(settings)
@@ -50,18 +37,22 @@ def word_page() -> None:
 
     language_options = [lang.value for lang in Language]
 
-    # -- Form ----------------------------------------------------------------
     with ui.column().classes("w-full max-w-2xl mx-auto p-6 gap-4"):
-        ui.label("Word Cards").classes("text-2xl font-bold")
+        with ui.row().classes("items-center gap-2"):
+            ui.badge("Production", color="teal").props("outline")
+            ui.label("Sentence Cards").classes("text-2xl font-bold")
+        ui.label(
+            "Add a target-language sentence; AI creates a native-language prompt, notes, and phrase breakdown."
+        ).classes("text-sm text-gray-500 -mt-3")
 
-        word_input = ui.input(
-            label="Word",
-            placeholder="Enter a single word (e.g. apple)",
+        sentence_input = ui.input(
+            label="Target-language sentence",
+            placeholder="Enter one sentence (e.g. I overslept this morning.)",
         ).classes("w-full")
 
         batch_textarea = ui.textarea(
-            label="Batch Words (optional)",
-            placeholder="One word per line:\napple\nbanana\ncherry",
+            label="Batch target-language sentences (optional)",
+            placeholder="One target-language sentence per line:\nI overslept this morning.\nI need to leave earlier tomorrow.",
         ).classes("w-full")
         batch_textarea.props("autogrow")
 
@@ -78,13 +69,8 @@ def word_page() -> None:
                 value=settings.defaults.target_language,
             ).classes("flex-1")
 
-        generate_image_switch = ui.switch(
-            "Generate images",
-            value=settings.defaults.generate_image,
-        )
-
         parallelism_select = ui.select(
-            label="Parallel words",
+            label="Parallel sentences",
             options={
                 1: "1 at a time",
                 2: "2 at a time",
@@ -97,14 +83,12 @@ def word_page() -> None:
             "Higher values finish batches sooner but use more provider capacity."
         ).classes("text-xs text-gray-500 -mt-3")
 
-        # -- Results area ----------------------------------------------------
         results_container = ui.column().classes("w-full gap-2")
         status_label = ui.label("").classes("text-sm text-gray-500")
 
-        # -- Generate button -------------------------------------------------
         generate_btn = (
             ui.button(
-                "Generate",
+                "Generate sentence cards",
                 on_click=lambda: asyncio.ensure_future(_generate()),
                 icon="auto_awesome",
             )
@@ -112,26 +96,27 @@ def word_page() -> None:
             .classes("w-full")
         )
 
-        async def _generate():
-            # Re-read from disk so a Settings change made after this page
-            # loaded (e.g. in another tab) is picked up on every click.
+        async def _generate() -> None:
             settings = load_settings()
             apply_env(settings)
 
-            single = (word_input.value or "").strip()
+            single = (sentence_input.value or "").strip()
             batch_text = (batch_textarea.value or "").strip()
-            words: list[str] = []
+            sentences: list[str] = []
             if single:
-                words.append(single)
+                sentences.append(single)
             if batch_text:
-                words.extend(w.strip() for w in batch_text.splitlines() if w.strip())
-            if not words:
-                _notify("Enter at least one word", "warning")
+                sentences.extend(
+                    sentence.strip()
+                    for sentence in batch_text.splitlines()
+                    if sentence.strip()
+                )
+            if not sentences:
+                _notify("Enter at least one target-language sentence", "warning")
                 return
 
             native = native_select.value
             target = target_select.value
-            generate_image = generate_image_switch.value
             parallelism = int(parallelism_select.value or 1)
 
             generate_btn.props("loading")
@@ -139,26 +124,18 @@ def word_page() -> None:
             status_label.text = ""
             results_container.clear()
 
-            # Build card placeholders
             placeholders: list[tuple[ui.card, ui.label]] = []
             with results_container:
-                for word in words:
+                for sentence in sentences:
                     card = ui.card().classes("w-full p-2 text-sm")
                     with card:
-                        lbl = ui.label(f"⏳ {word} — generating...")
-                    placeholders.append((card, lbl))
+                        label = ui.label(f"⏳ {sentence} — generating...")
+                    placeholders.append((card, label))
 
             status_label.text = (
-                f"Generating {len(words)} word(s), up to {parallelism} at a time…"
+                f"Generating {len(sentences)} sentence(s), "
+                f"up to {parallelism} at a time…"
             )
-
-            image_service = None
-            if generate_image:
-                image_service = LiteLLMGeminiImageService(
-                    model_id=settings.image_model,
-                    image_size=settings.image_size,
-                    api_key=settings.api_keys.get("GEMINI_API_KEY") or None,
-                )
 
             custom_profile = settings.custom_providers.get(settings.provider)
             if settings.provider == CUSTOM_PROVIDER and custom_profile is None:
@@ -180,50 +157,49 @@ def word_page() -> None:
 
             try:
                 async with Application():
-                    client = AnkiConnectClient()
-                    async with WordCollection(
-                        client,
+                    anki_client = AnkiConnectClient()
+                    async with SentenceCollection(
+                        anki_client,
                         native_language=Language(native),
                         target_language=Language(target),
                         text_model_id=settings.text_model,
                         text_service=text_service,
-                        image_service=image_service,
                     ) as collection:
                         semaphore = asyncio.Semaphore(parallelism)
 
                         async def _generate_one(
-                            index: int, word: str
+                            index: int, sentence: str
                         ) -> tuple[int, Exception | None]:
                             async with semaphore:
                                 try:
-                                    await collection.generate_and_add_note(word)
+                                    await collection.generate_and_add_note(sentence)
                                 except Exception as exc:
                                     return index, exc
                             return index, None
 
                         tasks = [
-                            asyncio.create_task(_generate_one(index, word))
-                            for index, word in enumerate(words)
+                            asyncio.create_task(_generate_one(index, sentence))
+                            for index, sentence in enumerate(sentences)
                         ]
                         for task in asyncio.as_completed(tasks):
                             index, error = await task
-                            card, lbl = placeholders[index]
-                            word = words[index]
+                            card, label = placeholders[index]
+                            sentence = sentences[index]
                             if error is None:
-                                lbl.set_text(f"✓ {word} — added to Anki")
-                                lbl.classes("text-green-700 dark:text-green-400")
+                                label.set_text(f"✓ {sentence} — added to Anki")
+                                label.classes("text-green-700 dark:text-green-400")
                                 card.classes(add="bg-green-50 dark:bg-green-900/20")
                                 success_count += 1
                             else:
-                                lbl.set_text(f"✗ {word} — {format_error(error)}")
-                                lbl.classes("text-red-700 dark:text-red-400")
+                                label.set_text(f"✗ {sentence} — {format_error(error)}")
+                                label.classes("text-red-700 dark:text-red-400")
                                 card.classes(add="bg-red-50 dark:bg-red-900/20")
                                 fail_count += 1
 
-                    total = len(words)
+                    total = len(sentences)
                     if fail_count == 0:
                         status_label.text = (
-                            f"✅ All {total} word(s) generated successfully!"
+                            f"✅ All {total} sentence(s) generated successfully!"
                         )
                         _notify("All done!", "positive")
                     else:

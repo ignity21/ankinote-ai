@@ -214,6 +214,8 @@ async def test_ensure_note_type_exists_registers_v2_templates():
     assert [template["Name"] for template in templates] == [
         "Production",
     ]
+    assert "{{native_sentence}}" in templates[0]["Front"]
+    assert "{{target_sentence}}" in templates[0]["Back"]
     assert ".sentence-stage" in cast(str, created["css"])
 
 

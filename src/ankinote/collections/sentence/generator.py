@@ -50,7 +50,7 @@ def _extract_json_payload(content: str) -> str:
 
 
 async def generate_sentence_data(
-    native_sentence: str,
+    target_sentence: str,
     target_language: Language,
     native_language: Language,
     text_service: TextGenerationService,
@@ -59,20 +59,20 @@ async def generate_sentence_data(
 ) -> SentenceModel:
     """Generate sentence card data via LLM.
 
-    The *native_sentence* is provided in the user's native language; the model
-    generates the corresponding target sentence and any useful notes.
+    The *target_sentence* is provided in the language being learned; the model
+    generates its native-language translation and useful learning notes.
     """
 
     system_prompt = _load_prompt_template(target_language)
     user_message = (
-        f"Native sentence: {native_sentence}\n"
+        f"Target sentence: {target_sentence}\n"
         f"Target language: {target_language.value}\n"
         f"Native language: {native_language.value}"
     )
 
     logger.info(
-        f"Generating sentence data for '{native_sentence}' "
-        f"(native: {native_language.value}, target: {target_language.value})"
+        f"Generating sentence data for '{target_sentence}' "
+        f"(target: {target_language.value}, native: {native_language.value})"
     )
 
     try:
@@ -97,11 +97,11 @@ async def generate_sentence_data(
             raise RuntimeError(f"AI returned invalid JSON: {e}") from e
 
         sentence_model = SentenceModel.model_validate(data)
-        logger.success(f"Generated sentence model for '{native_sentence}'")
+        logger.success(f"Generated sentence model for '{target_sentence}'")
         return sentence_model
 
     except Exception as e:
-        logger.error(f"Failed to generate sentence data for '{native_sentence}': {e}")
+        logger.error(f"Failed to generate sentence data for '{target_sentence}': {e}")
         raise
 
 
@@ -120,14 +120,14 @@ class SentenceGenerator:
 
     async def generate_sentence_data(
         self,
-        native_sentence: str,
+        target_sentence: str,
         target_lang: Language,
         native_lang: Language,
         temperature: float = 0.3,
     ) -> SentenceModel:
         """Generate structured sentence data via LLM."""
         return await generate_sentence_data(
-            native_sentence=native_sentence,
+            target_sentence=target_sentence,
             target_language=target_lang,
             native_language=native_lang,
             text_service=self._text_service,

@@ -20,8 +20,9 @@ class PhraseModel(BaseModel):
 class SentenceModel(BaseModel):
     """Structured sentence model for AI generation.
 
-    The sentence collection is for translation-style cards:
-    front shows the native language sentence, back shows the target language.
+    The sentence collection is for production-style cards. The learner submits
+    a target-language sentence; the front shows its native-language translation
+    and the back shows the target-language sentence with learning notes.
     """
 
     target_sentence: str

@@ -1,5 +1,5 @@
 # Japanese Sentence Anki Card Generation
-Generate **one** JSON object for the given native sentence.
+Generate **one** JSON object for the given target-language Japanese sentence.
 Return **only** valid JSON, no markdown, no comments.
 
 ## Furigana Format
@@ -15,8 +15,8 @@ e.g.
 ## Json Output
 ```json
 {
-  "target_sentence": "Japanese sentence (faithful translation of the input) with <Kanji:reading>",
-  "native_sentence": "The input sentence in the user's native language (mirror back exactly as provided).",
+  "target_sentence": "The input Japanese sentence, with <Kanji:reading> annotations added where needed.",
+  "native_sentence": "A faithful, natural translation of the input in the user's native language.",
   "notes": ["short observations in user's native language. Cover nuance, register, common pitfalls, context, and any JLPT N3+ grammar points. All in native language."],
   "phrases": [{
     "phrase": "useful Japanese phrase or collocation with <Kanji:reading>",
@@ -28,7 +28,7 @@ e.g.
 ## Field Rules
 | Field | Constraint |
 |---|---|
-| `target_sentence` | produce a faithful, natural Japanese translation of the input native sentence. Apply furigana annotations to all kanji. |
-| `native_sentence` | mirror the input sentence back exactly as provided. |
+| `target_sentence` | mirror the input Japanese sentence and apply furigana annotations to all kanji. Do not correct colloquial or non-standard structures; explain them in `notes` instead. |
+| `native_sentence` | produce a faithful, natural translation of the input in the user's native language. |
 | `notes` | 0–3 items; useful observations about the target sentence in user's native language. |
 | `phrases` | 0–3 entries; useful Japanese phrases or collocations from the target sentence, with translations and example sentences. |
