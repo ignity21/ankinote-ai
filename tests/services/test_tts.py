@@ -1,5 +1,6 @@
 """Tests for the Google TTS service wrapper."""
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -105,3 +106,19 @@ class TestGoogleTTSService:
 
         mock_client.list_voices.assert_awaited_once()
         assert mock_client.synthesize_speech.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_synthesize_times_out(self, mocker: MockerFixture):
+        async def never_returns(*args, **kwargs):
+            await asyncio.Event().wait()
+
+        mock_client = SimpleNamespace(
+            synthesize_speech=mocker.AsyncMock(side_effect=never_returns)
+        )
+        service = GoogleTTSService("en-US", "Neural2")
+        service._tts_cli = mock_client
+        service._available_voices = ["en-US-Neural2-A"]
+        mocker.patch("ankinote.services.tts.REQUEST_TIMEOUT_SECONDS", 0.01)
+
+        with pytest.raises(RuntimeError, match="Text-to-speech request timed out"):
+            await service.synthesize("hello")

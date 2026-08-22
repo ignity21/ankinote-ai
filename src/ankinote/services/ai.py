@@ -1,6 +1,7 @@
 """Shared AI configuration and provider-backed generation services."""
 
 import base64
+import asyncio
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import Protocol, cast
@@ -10,6 +11,7 @@ from litellm import acompletion, aimage_generation
 from ankinote.utils.img import resize_to_max_edge
 
 TextMessage = dict[str, str]
+REQUEST_TIMEOUT_SECONDS = 60
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +75,19 @@ class LiteLLMTextService:
         self._api_base = api_base
         self._api_key = api_key
 
+    def _resolve_model_id(self, model_id: str) -> str:
+        """Tell LiteLLM which provider owns models on a custom endpoint.
+
+        LiteLLM infers a provider from an unqualified model id.  For model
+        names such as ``Qwen/...`` that inference can select Hugging Face even
+        when ``api_base`` points at an OpenAI-compatible server.  The
+        ``openai/`` prefix makes the intended routing explicit.  An existing
+        ``openai/`` prefix is left unchanged.
+        """
+        if self._api_base is not None and not model_id.startswith("openai/"):
+            return f"openai/{model_id}"
+        return model_id
+
     async def generate_text(
         self,
         *,
@@ -81,15 +96,27 @@ class LiteLLMTextService:
         temperature: float,
     ) -> str:
         """Generate text content using LiteLLM chat completion."""
-        response = await acompletion(
-            model=model_id,
-            messages=list(messages),
-            stream=False,
-            temperature=temperature,
-            drop_params=True,
-            api_base=self._api_base,
-            api_key=self._api_key,
-        )
+        completion_kwargs: dict[str, object] = {
+            "model": self._resolve_model_id(model_id),
+            "messages": list(messages),
+            "stream": False,
+            "temperature": temperature,
+            "drop_params": True,
+            "timeout": REQUEST_TIMEOUT_SECONDS,
+            "num_retries": 0,
+        }
+        if self._api_base is not None:
+            completion_kwargs["api_base"] = self._api_base
+        if self._api_key is not None:
+            completion_kwargs["api_key"] = self._api_key
+
+        try:
+            async with asyncio.timeout(REQUEST_TIMEOUT_SECONDS):
+                response = await acompletion(**completion_kwargs)
+        except TimeoutError as exc:
+            raise RuntimeError(
+                f"Text generation timed out after {REQUEST_TIMEOUT_SECONDS} seconds"
+            ) from exc
         content = response.choices[0].message.content  # pyright: ignore[reportAttributeAccessIssue]
         if not isinstance(content, str):
             raise RuntimeError("AI returned non-string content")
@@ -108,11 +135,21 @@ class LiteLLMGeminiImageService:
 
     async def generate_image(self, *, prompt: str) -> bytes:
         """Generate resized image bytes from a prompt."""
-        response = await aimage_generation(
-            model=self._model_id,
-            prompt=prompt,
-            api_key=self._api_key,
-        )
+        image_kwargs: dict[str, object] = {
+            "model": self._model_id,
+            "prompt": prompt,
+            "timeout": REQUEST_TIMEOUT_SECONDS,
+            "num_retries": 0,
+        }
+        if self._api_key is not None:
+            image_kwargs["api_key"] = self._api_key
+        try:
+            async with asyncio.timeout(REQUEST_TIMEOUT_SECONDS):
+                response = await aimage_generation(**image_kwargs)
+        except TimeoutError as exc:
+            raise RuntimeError(
+                f"Image generation timed out after {REQUEST_TIMEOUT_SECONDS} seconds"
+            ) from exc
         data = cast(object, response.data[0])  # pyright: ignore[reportOptionalSubscript]
         b64 = getattr(data, "b64_json", None)
         if not isinstance(b64, str):

@@ -10,7 +10,13 @@ from ankinote.collections.word import WordCollection
 from ankinote.consts import Language
 from ankinote.services.ai import LiteLLMTextService, LiteLLMGeminiImageService
 from ankinote.services.anki import AnkiConnectClient
-from ankinote.ui.config import CUSTOM_API_KEY_STORAGE_KEY, CUSTOM_PROVIDER, apply_env, load_settings
+from ankinote.ui.config import (
+    CUSTOM_API_KEY_STORAGE_KEY,
+    CUSTOM_PROVIDER,
+    CustomProvider,
+    apply_env,
+    load_settings,
+)
 
 
 _ERROR_MESSAGE_RE = re.compile(r'"message"\s*:\s*"([^"]+)"')
@@ -31,6 +37,12 @@ def word_page() -> None:
 
     settings = load_settings()
     apply_env(settings)
+    client = ui.context.client
+
+    def _notify(message: str, notification_type: str) -> None:
+        """Send a notification from the generation background task."""
+        with client:
+            ui.notify(message, type=notification_type)
 
     language_options = [lang.value for lang in Language]
 
@@ -67,6 +79,20 @@ def word_page() -> None:
             value=settings.defaults.generate_image,
         )
 
+        parallelism_select = ui.select(
+            label="Parallel words",
+            options={
+                1: "1 at a time",
+                2: "2 at a time",
+                3: "3 at a time",
+                5: "5 at a time",
+            },
+            value=1,
+        ).classes("w-full")
+        ui.label(
+            "Higher values finish batches sooner but use more provider capacity."
+        ).classes("text-xs text-gray-500 -mt-3")
+
         # -- Results area ----------------------------------------------------
         results_container = ui.column().classes("w-full gap-2")
         status_label = ui.label("").classes("text-sm text-gray-500")
@@ -94,12 +120,13 @@ def word_page() -> None:
                     w.strip() for w in batch_text.splitlines() if w.strip()
                 )
             if not words:
-                ui.notify("Enter at least one word", type="warning")
+                _notify("Enter at least one word", "warning")
                 return
 
             native = native_select.value
             target = target_select.value
             generate_image = generate_image_switch.value
+            parallelism = int(parallelism_select.value or 1)
 
             generate_btn.props("loading")
             generate_btn.update()
@@ -115,6 +142,10 @@ def word_page() -> None:
                         lbl = ui.label(f"⏳ {word} — generating...")
                     placeholders.append((card, lbl))
 
+            status_label.text = (
+                f"Generating {len(words)} word(s), up to {parallelism} at a time…"
+            )
+
             image_service = None
             if generate_image:
                 image_service = LiteLLMGeminiImageService(
@@ -123,10 +154,17 @@ def word_page() -> None:
                     api_key=settings.api_keys.get("GEMINI_API_KEY") or None,
                 )
 
-            if settings.provider == CUSTOM_PROVIDER:
+            custom_profile = settings.custom_providers.get(settings.provider)
+            if settings.provider == CUSTOM_PROVIDER and custom_profile is None:
+                custom_profile = CustomProvider(
+                    base_url=settings.custom_base_url,
+                    model=settings.text_model,
+                    api_key=settings.api_keys.get(CUSTOM_API_KEY_STORAGE_KEY, ""),
+                )
+            if custom_profile is not None:
                 text_service = LiteLLMTextService(
-                    api_base=settings.custom_base_url or None,
-                    api_key=settings.api_keys.get(CUSTOM_API_KEY_STORAGE_KEY) or None,
+                    api_base=custom_profile.base_url or None,
+                    api_key=custom_profile.api_key or None,
                 )
             else:
                 text_service = LiteLLMTextService()
@@ -145,9 +183,27 @@ def word_page() -> None:
                         text_service=text_service,
                         image_service=image_service,
                     ) as collection:
-                        for (card, lbl), word in zip(placeholders, words):
-                            try:
-                                await collection.generate_and_add_note(word)
+                        semaphore = asyncio.Semaphore(parallelism)
+
+                        async def _generate_one(
+                            index: int, word: str
+                        ) -> tuple[int, Exception | None]:
+                            async with semaphore:
+                                try:
+                                    await collection.generate_and_add_note(word)
+                                except Exception as exc:
+                                    return index, exc
+                            return index, None
+
+                        tasks = [
+                            asyncio.create_task(_generate_one(index, word))
+                            for index, word in enumerate(words)
+                        ]
+                        for task in asyncio.as_completed(tasks):
+                            index, error = await task
+                            card, lbl = placeholders[index]
+                            word = words[index]
+                            if error is None:
                                 lbl.set_text(f"✓ {word} — added to Anki")
                                 lbl.classes(
                                     "text-green-700 dark:text-green-400"
@@ -156,8 +212,8 @@ def word_page() -> None:
                                     add="bg-green-50 dark:bg-green-900/20"
                                 )
                                 success_count += 1
-                            except Exception as exc:
-                                lbl.set_text(f"✗ {word} — {_format_error(exc)}")
+                            else:
+                                lbl.set_text(f"✗ {word} — {_format_error(error)}")
                                 lbl.classes(
                                     "text-red-700 dark:text-red-400"
                                 )
@@ -171,7 +227,7 @@ def word_page() -> None:
                         status_label.text = (
                             f"✅ All {total} word(s) generated successfully!"
                         )
-                        ui.notify("All done!", type="positive")
+                        _notify("All done!", "positive")
                     else:
                         status_label.text = (
                             f"✅ {success_count}/{total} succeeded, "
@@ -180,7 +236,7 @@ def word_page() -> None:
 
             except Exception as exc:
                 message = _format_error(exc)
-                ui.notify(f"Error: {message}", type="negative")
+                _notify(f"Error: {message}", "negative")
                 status_label.text = f"Error: {message}"
             finally:
                 generate_btn.props(remove="loading")

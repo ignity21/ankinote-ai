@@ -39,7 +39,64 @@ async def test_litellm_text_service_forwards_completion_args(
         stream=False,
         temperature=0.2,
         drop_params=True,
+        timeout=60,
+        num_retries=0,
     )
+
+
+@pytest.mark.asyncio
+async def test_litellm_text_service_routes_custom_endpoint_through_openai(
+    mocker: MockerFixture,
+):
+    completion = mocker.patch(
+        "ankinote.services.ai.acompletion",
+        return_value=SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))]
+        ),
+    )
+
+    service = LiteLLMTextService(
+        api_base="http://localhost:8000/v1",
+        api_key="test-key",
+    )
+    await service.generate_text(
+        model_id="Qwen/Qwen3-8B",
+        messages=[{"role": "user", "content": "hello"}],
+        temperature=0.2,
+    )
+
+    completion.assert_awaited_once_with(
+        model="openai/Qwen/Qwen3-8B",
+        messages=[{"role": "user", "content": "hello"}],
+        stream=False,
+        temperature=0.2,
+        drop_params=True,
+        timeout=60,
+        num_retries=0,
+        api_base="http://localhost:8000/v1",
+        api_key="test-key",
+    )
+
+
+@pytest.mark.asyncio
+async def test_litellm_text_service_keeps_explicit_openai_prefix(
+    mocker: MockerFixture,
+):
+    completion = mocker.patch(
+        "ankinote.services.ai.acompletion",
+        return_value=SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))]
+        ),
+    )
+
+    service = LiteLLMTextService(api_base="http://localhost:8000/v1")
+    await service.generate_text(
+        model_id="openai/my-model",
+        messages=[{"role": "user", "content": "hello"}],
+        temperature=0.2,
+    )
+
+    assert completion.await_args.kwargs["model"] == "openai/my-model"
 
 
 @pytest.mark.asyncio
@@ -91,4 +148,6 @@ async def test_litellm_gemini_image_service_decodes_and_resizes(
     image_generation.assert_awaited_once_with(
         model="gemini/gemini-2.5-flash-image",
         prompt="draw a cat",
+        timeout=60,
+        num_retries=0,
     )

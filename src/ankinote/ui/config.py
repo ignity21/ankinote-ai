@@ -48,6 +48,7 @@ PROVIDERS: dict[str, dict] = {
 # server or a third-party OpenAI-compatible API.
 CUSTOM_PROVIDER = "Custom (OpenAI-compatible)"
 CUSTOM_API_KEY_STORAGE_KEY = "CUSTOM_API_KEY"
+NEW_CUSTOM_PROVIDER = "＋ Add custom provider"
 
 # Substrings that disqualify an otherwise "chat" mode model from the
 # picker — these variants require request shapes our generators don't send.
@@ -101,6 +102,15 @@ class DefaultsConfig:
 
 
 @dataclass
+class CustomProvider:
+    """A named OpenAI-compatible endpoint configured by the user."""
+
+    base_url: str = ""
+    model: str = ""
+    api_key: str = ""
+
+
+@dataclass
 class Settings:
     provider: str = "OpenAI"
     text_model: str = "gpt-4o"
@@ -108,6 +118,7 @@ class Settings:
     image_size: int = 512
     custom_base_url: str = ""
     api_keys: dict[str, str] = field(default_factory=dict)
+    custom_providers: dict[str, CustomProvider] = field(default_factory=dict)
     defaults: DefaultsConfig = field(default_factory=DefaultsConfig)
 
 
@@ -133,6 +144,26 @@ def load_settings() -> Settings:
         data = json.loads(path.read_text(encoding="utf-8"))
         defaults_data = data.get("defaults", {})
         defaults = DefaultsConfig(**defaults_data)
+        custom_providers = {
+            name: CustomProvider(
+                base_url=value.get("base_url", ""),
+                model=value.get("model", ""),
+                api_key=value.get("api_key", ""),
+            )
+            for name, value in data.get("custom_providers", {}).items()
+            if isinstance(name, str) and isinstance(value, dict)
+        }
+        # Migrate the original single custom provider into a named profile.
+        # Keep the old fields in Settings as well so older callers/configs
+        # remain readable during the transition.
+        legacy_provider = data.get("provider") == CUSTOM_PROVIDER
+        if legacy_provider and CUSTOM_PROVIDER not in custom_providers:
+            custom_providers[CUSTOM_PROVIDER] = CustomProvider(
+                base_url=data.get("custom_base_url", ""),
+                model=data.get("text_model", ""),
+                api_key=data.get("api_keys", {}).get(CUSTOM_API_KEY_STORAGE_KEY, ""),
+            )
+
         return Settings(
             provider=data.get("provider", "OpenAI"),
             text_model=data.get("text_model", "gpt-4o"),
@@ -140,6 +171,7 @@ def load_settings() -> Settings:
             image_size=data.get("image_size", 512),
             custom_base_url=data.get("custom_base_url", ""),
             api_keys=data.get("api_keys", {}),
+            custom_providers=custom_providers,
             defaults=defaults,
         )
     except (json.JSONDecodeError, KeyError, TypeError):
@@ -157,6 +189,10 @@ def save_settings(settings: Settings) -> None:
         "image_size": settings.image_size,
         "custom_base_url": settings.custom_base_url,
         "api_keys": settings.api_keys,
+        "custom_providers": {
+            name: asdict(provider)
+            for name, provider in settings.custom_providers.items()
+        },
         "defaults": asdict(settings.defaults),
     }
     path = _get_config_path()

@@ -1,3 +1,4 @@
+import asyncio
 import random
 from typing import Protocol, Self
 
@@ -23,6 +24,9 @@ TTS_LANG_CODES: dict[Language, str] = {
     Language.GERMAN: "de-DE",
     Language.KOREAN: "ko-KR",
 }
+REQUEST_TIMEOUT_SECONDS = 60
+
+
 class SpeechSynthesizer(Protocol):
     """Narrow speech synthesis contract used by generators."""
 
@@ -75,7 +79,15 @@ class GoogleTTSService:
         if self._available_voices:
             return self._available_voices
 
-        response = await self._get_client().list_voices(language_code=self._lang_code)
+        try:
+            async with asyncio.timeout(REQUEST_TIMEOUT_SECONDS):
+                response = await self._get_client().list_voices(
+                    language_code=self._lang_code
+                )
+        except TimeoutError as exc:
+            raise RuntimeError(
+                f"TTS voice lookup timed out after {REQUEST_TIMEOUT_SECONDS} seconds"
+            ) from exc
         for voice in response.voices:
             if self._model in voice.name:
                 self._available_voices.append(voice.name)
@@ -148,11 +160,17 @@ class GoogleTTSService:
             pitch=pitch,
         )
 
-        response = await self._get_client().synthesize_speech(
-            input=synthesis_input,
-            voice=voice_params,
-            audio_config=audio_config,
-        )
+        try:
+            async with asyncio.timeout(REQUEST_TIMEOUT_SECONDS):
+                response = await self._get_client().synthesize_speech(
+                    input=synthesis_input,
+                    voice=voice_params,
+                    audio_config=audio_config,
+                )
+        except TimeoutError as exc:
+            raise RuntimeError(
+                f"Text-to-speech request timed out after {REQUEST_TIMEOUT_SECONDS} seconds"
+            ) from exc
 
         return response.audio_content
 

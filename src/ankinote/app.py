@@ -1,5 +1,3 @@
-import asyncio
-
 from ankinote.utils.httpcli import close_session, init_session
 
 
@@ -11,13 +9,7 @@ class Application:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        # Wait for all pending tasks
-        pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-        if pending:
-            _, still_pending = await asyncio.wait(pending, timeout=5)
-            if still_pending:
-                for t in still_pending:
-                    t.cancel()
-                await asyncio.gather(*still_pending, return_exceptions=True)
-
+        # Do not inspect or cancel global tasks here.  In the GUI this context
+        # runs in NiceGUI's event loop, so those tasks include the server and
+        # the client's websocket handler.
         await close_session()
