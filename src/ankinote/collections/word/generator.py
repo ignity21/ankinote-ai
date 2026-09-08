@@ -56,8 +56,7 @@ def _extract_json_payload(content: str) -> str:
 def _build_image_user_prompt(lemma: str, sense: Sense) -> str:
     return (
         f"Lemma: {lemma}\n"
-        f"Target-language meaning: {sense.target_text}\n"
-        f"Native-language meaning: {sense.native_text}"
+        f"Target-language meaning: {sense.target_text}"
     )
 
 

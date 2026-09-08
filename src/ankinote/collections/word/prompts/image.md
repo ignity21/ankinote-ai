@@ -7,3 +7,6 @@ Minimal margins and very little empty space around the edges.
 **Style:** Clean, vibrant, high-quality minimalist flashcard icon.
 **Details:** Flat design, solid colors, white background, no text, no labels.
 The image should be a close-up, making the concept instantly recognizable.
+**Strict:** Never render any text, letters, or writing in the image. In
+particular, the target word itself must NEVER appear anywhere in the picture,
+in any language or form.
