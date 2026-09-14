@@ -31,8 +31,7 @@ ankinote is an automated Anki flashcard generator that uses litellm to support a
 
 - Python 3.14+
 - [uv](https://github.com/astral-sh/uv) package manager
-- Anki with [AnkiConnect](https://ankiweb.net/shared/info/2055492159) plugin installed
-- An API key for at least one AI provider (see Configuration below)
+- Anki with [AnkiConnect](https://ankiweb.net/shared/info/2055492159) plugin installed, **or** the in-process (headless) backend — see below
 
 ### Installation
 
@@ -40,12 +39,121 @@ ankinote is an automated Anki flashcard generator that uses litellm to support a
 # Install from PyPI
 uv pip install ankinote-ai
 
-# Or install the CLI as an isolated uv tool
+# Or install the CLI/GUI as an isolated uv tool
 uv tool install ankinote-ai
-
-# Configure API credentials
-# Create a .env file in your working directory and add your API keys
 ```
+
+ankinote has two front ends that share the same card-generation engine:
+
+- **Web UI** (`ankinote-gui`) — everything, including AI provider keys, is
+  configured from the browser. No `.env` file needed. Start here if you're new.
+- **CLI** (`ankinote`) — scriptable, batch-friendly, configured via `.env` /
+  environment variables. See [CLI usage](#ankinote-cli---usage-guide) below.
+
+---
+
+## 🖥️ Web UI
+
+### Launching
+
+```bash
+# From a uv-managed checkout
+uv run ankinote-gui
+
+# Or, if installed as a tool / into a venv
+ankinote-gui
+```
+
+This opens `http://localhost:8080` in a browser (set `ANKINOTE_SHOW=false` to
+skip auto-open, e.g. on a headless server). The UI has six pages, reachable
+from the left drawer: **Word**, **Phrases**, **Sentences**, **STEM**, **Card
+Types** (note type + deck setup), and **Settings**.
+
+### Configuration — all in the Settings page
+
+Nothing needs to be in a `.env` file for web UI use; every credential lives in
+the browser-saved settings file and is applied to the process at save time.
+
+- **Generation route (text)** and **Image route** — each is a rack of named
+  provider profiles. Pick a vendor template (OpenAI, Anthropic, Gemini, Fal,
+  etc.) or "Custom / Other" for any OpenAI-compatible endpoint, then fill in
+  base URL, model (with a refresh button to fetch live model IDs), and API
+  key. Multiple profiles per vendor are supported (e.g. two OpenAI accounts),
+  and you switch which one is active by clicking its pill.
+  - For Fal image generation, use a `Fal` profile with base URL
+    `https://fal.run` and your Fal API key, with a full endpoint id such as
+    `fal-ai/z-image/turbo`.
+- **TTS (Google Cloud)** — paste the Google Cloud TTS API key.
+- **Defaults** — native/target language and whether image generation is on by
+  default for new cards.
+- **AnkiWeb sync** — shown when the in-process backend is active (see below):
+  login/logout, sync status, manual sync, sync interval, and the
+  upload/download choice on a required full sync.
+- **Backup & transfer** — export all provider profiles + the TTS key as a
+  passphrase-encrypted JSON bundle (scrypt + AES-256-GCM), and import one back
+  in, merged by profile name. Useful for moving settings between machines or
+  backing them up.
+
+### What still needs to be set outside the browser
+
+A few things are process-level, not per-user settings, so they're still env
+vars:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ANKINOTE_HOST` / `ANKINOTE_PORT` | `0.0.0.0` / `8080` | Bind address for the web server |
+| `ANKINOTE_STORAGE_SECRET` | built-in dev key | NiceGUI session-signing key — set a random value for anything beyond local use |
+| `ANKINOTE_SHOW` | `true` | Whether to auto-open a browser tab on start |
+| `ANKI_BACKEND` | `connect` | `connect` (talk to an existing Anki via AnkiConnect) or `collection` (in-process/headless) |
+| `ANKI_CONNECT_URL` | `http://localhost:8765` | Where AnkiConnect lives (`connect` backend) |
+| `ANKI_COLLECTION_PATH` | – | Collection file to open; required for `ANKI_BACKEND=collection` |
+| `ANKIWEB_USERNAME` / `ANKIWEB_PASSWORD` | – | Optional: configure the `collection` backend's AnkiWeb login externally instead of through the Settings page; overrides a UI login, password never persisted to disk |
+
+The in-process (`collection`) backend additionally requires the
+`ankinote-ai[headless]` extra. It synchronizes with AnkiWeb at startup, after
+each note save or note-type setup batch, and every five minutes. A fresh
+collection blocks writes until its initial sync completes; an initialized
+collection remains writable offline. A required full sync blocks writes until
+you resolve the upload/download choice, in the Settings page or via
+`ankinote anki sync`.
+
+Beside the collection file, `.sync.json` stores credential-free status,
+`.credentials.json` stores saved login credentials with mode `0600`, `.account`
+retains an account binding after logout, and `.backups/` holds recoverable
+collection backups made before full sync. Logout removes the saved credential
+and pauses synchronization without deleting the collection or media. Use a
+different data directory to switch accounts. Open a collection from only one
+process at a time.
+
+### Run the web UI with Docker
+
+Published images (multi-arch `amd64` + `arm64`): `ghcr.io/ignity21/ankinote-ai`
+and `ignity21/ankinote-ai` (Docker Hub), tags `latest`, `<major>.<minor>`, and the
+exact version.
+
+Two ready-made compose stacks under [`deploy/`](deploy/):
+
+```bash
+cd deploy/standard        # GUI + an AnkiConnect you already run
+# or: cd deploy/headless  # GUI with the in-process Anki backend, syncs to AnkiWeb
+cp .env.example .env      # set ANKINOTE_STORAGE_SECRET (+ AnkiWeb login for headless)
+docker compose up -d      # http://localhost:8080
+```
+
+AI provider keys are added in the web UI (Settings page), not `.env`. See
+[`deploy/README.md`](deploy/README.md) for the difference between the stacks, the
+AnkiConnect host setup, and building locally. The published image bundles the
+`anki` library, so both backends work without a custom build.
+
+---
+
+# ankinote CLI - Usage Guide
+
+## Overview
+
+The ankinote CLI is a scriptable, batch-friendly way to generate AI-powered
+Anki flashcards from the terminal. Unlike the web UI, it's configured with a
+`.env` file / environment variables rather than in-browser settings.
 
 ### Configuration
 
@@ -66,119 +174,39 @@ GOOGLE_TTS_KEY=your_tts_api_key
 ANKI_CONNECT_URL=http://localhost:8765
 ```
 
-The in-process backend requires `ankinote-ai[headless]`,
-`ANKI_BACKEND=collection`, and `ANKI_COLLECTION_PATH` pointing to a collection
-file (for example `/data/collection.anki2`). Set both `ANKIWEB_USERNAME` and
-`ANKIWEB_PASSWORD` to configure AnkiWeb externally. These override a saved login;
-the password is never written to the credential file. The default backend remains
-AnkiConnect.
+The `ANKI_BACKEND`, `ANKI_COLLECTION_PATH`, and `ANKIWEB_USERNAME`/`ANKIWEB_PASSWORD`
+variables described above for the web UI apply the same way to the CLI — the
+in-process backend and AnkiWeb sync aren't web-UI-only features.
 
-The direct backend synchronizes at startup, after each note save or note-type
-setup batch, and every five minutes. A fresh collection blocks writes until its
-initial collection sync completes. An initialized collection remains writable
-when offline; collection and media sync outcomes are tracked separately. A
-required full sync blocks writes until an explicit upload/download choice is
-resolved. The Settings page has an **AnkiWeb sync** panel for login/logout,
-status, manual sync, the sync interval, and the upload/download choice; the
-`ankinote anki login|logout|status|sync` commands cover the same from the CLI.
-
-Beside the collection file, `.sync.json` stores credential-free status,
-`.credentials.json` stores saved login credentials with mode `0600`, `.account`
-retains an account binding after logout, and `.backups/` holds recoverable
-collection backups made before full sync. Logout removes the saved credential
-and pauses synchronization without deleting the collection or media. Externally
-configured credentials apply again on process restart. Use a different data
-directory to switch accounts. Open a collection from only one process at a time.
-
-### Fal images in the web UI
-
-For Word and STEM cards, select a `Fal` image provider profile with base URL
-`https://fal.run` and your Fal API key (or set `FAL_AI_API_KEY`). These profiles
-call Fal's model endpoints directly. Use a full endpoint such as
-`fal-ai/z-image/turbo`; `z-image/turbo` and the LiteLLM-style
-`fal_ai/fal-ai/z-image/turbo` are also accepted. `image_size` controls the maximum
-edge of the downloaded image, preserving its aspect ratio.
-
-The provider editor's refresh button lists active `text-to-image` endpoint IDs
-from Fal's Platform API. It works without a key and uses the saved Fal key for a
-higher rate limit when one is available; inference still uses `https://fal.run`.
-
-### Run the web GUI with Docker
-
-Published images (multi-arch `amd64` + `arm64`): `ghcr.io/ignity21/ankinote-ai`
-and `ignity21/ankinote-ai` (Docker Hub), tags `latest`, `<major>.<minor>`, and the
-exact version.
-
-Two ready-made compose stacks under [`deploy/`](deploy/):
-
-```bash
-cd deploy/standard        # GUI + an AnkiConnect you already run
-# or: cd deploy/headless  # GUI with the in-process Anki backend, syncs to AnkiWeb
-cp .env.example .env      # set ANKINOTE_STORAGE_SECRET (+ AnkiWeb login for headless)
-docker compose up -d      # http://localhost:8080
-```
-
-AI provider keys are added in the web UI (Settings page), not `.env`. See
-[`deploy/README.md`](deploy/README.md) for the difference between the stacks, the
-AnkiConnect host setup, and building locally.
-
-Container env vars:
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `ANKI_BACKEND` | `connect` | `connect` (AnkiConnect) or `collection` (in-process, used by `deploy/headless`) |
-| `ANKI_CONNECT_URL` | `http://host.docker.internal:8765` | Where AnkiConnect lives (`connect` backend) |
-| `ANKI_COLLECTION_PATH` | – | Collection file to open; required for `ANKI_BACKEND=collection` |
-| `ANKIWEB_USERNAME` / `ANKIWEB_PASSWORD` | – | Optional AnkiWeb login for the `collection` backend; overrides a UI login, password never stored |
-| `ANKINOTE_STORAGE_SECRET` | (built-in) | NiceGUI session-signing key — set a random value |
-| `ANKINOTE_HOST` / `ANKINOTE_PORT` | `0.0.0.0` / `8080` | Bind address inside the container |
-| `ANKINOTE_SHOW` | `false` in the image | Whether to open a browser on start |
-
-The published image bundles the `anki` library, so both backends work without a
-custom build. `ANKI_CONNECT_URL` is also honoured when running ankinote outside
-Docker (e.g. a remote Anki).
-
-# ankinote CLI - Usage Guide
-
-## Overview
-
-The ankinote CLI is a powerful command-line tool for generating AI-powered Anki flashcards with automatic definitions, examples, pronunciations, audio, and images.
+> **No `ankinote config`/`ankinote settings` command yet.** There's currently
+> no CLI subcommand to set API keys — only `.env` / environment variables, plus
+> `ankinote anki login|logout|status|sync` for AnkiWeb. A generic config
+> subcommand has been sketched in the past but never implemented; see
+> [`docs/plans/`](docs/plans/) if you pick this up — worth adding a plan doc for
+> it before starting.
 
 ## Commands
 
 The CLI currently provides four collection entrypoints. Run `ankinote <type> --help` or
 `ankinote <type> <command> --help` for the complete, current option list.
 
-### Word cards
+### Word, phrase, and sentence cards
+
+`word`, `phrase`, and `sentence` all follow the same `init` / `add` / `batch`
+shape — `init` creates the note type and deck, `add` takes one item, `batch`
+takes several (as arguments or `--file`):
 
 ```bash
-# Create the word note type and deck in Anki
 ankinote word init
-
-# Add one word
 ankinote word add serendipity
-
-# Add multiple words, either as arguments or from a file
 ankinote word batch serendipity ephemeral eloquent
 ankinote word batch --file words.txt
-```
 
-### Phrase cards
-
-```bash
-ankinote phrase init
 ankinote phrase add "look after"
-ankinote phrase batch "focus on" "call off"
 ankinote phrase batch --file phrases.txt
-```
 
-### Sentence cards
-
-The sentence argument should be in the native language; the target-language
-version is generated for the card back.
-
-```bash
-ankinote sentence init
+# sentence argument is in the native language; the target-language version
+# is generated for the card back
 ankinote sentence add "我今天起晚了。"
 ankinote sentence batch --file sentences.txt
 ```
@@ -236,22 +264,6 @@ ankinote word add serendipity --native English --target 'Chinese(Simplified)'
 ankinote word batch --file words.txt --rpm 30
 ankinote stem add "State Bayes' theorem" --image-model gpt-image-1 --image-size 1024
 ```
-
-## Troubleshooting
-
-### Error: "AnkiConnect not available"
-- Make sure Anki is running
-- Check that AnkiConnect add-on is installed
-- Verify AnkiConnect is listening on port 8765
-
-### Error: "No images found"
-- Some STEM topics may not need a generated diagram
-- Check the configured image model with `ankinote stem add --help`
-
-### Error: "API key not found"
-- Check your configuration file
-- Ensure environment variables are set
-- Verify API keys are valid
 
 ## Getting Help
 
