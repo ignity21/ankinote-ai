@@ -54,10 +54,7 @@ def _extract_json_payload(content: str) -> str:
 
 
 def _build_image_user_prompt(lemma: str, sense: Sense) -> str:
-    return (
-        f"Lemma: {lemma}\n"
-        f"Target-language meaning: {sense.target_text}"
-    )
+    return f"Lemma: {lemma}\nTarget-language meaning: {sense.target_text}"
 
 
 async def generate_word_data(
