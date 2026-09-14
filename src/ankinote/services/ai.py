@@ -62,9 +62,10 @@ def resolve_thinking(choice: str | None, *, unset: str | None) -> str | None:
 class AIServiceConfig:
     """Centralized default AI configuration."""
 
-    text_model: str = "deepseek/deepseek-v4-flash"
-    image_model: str = "gemini/gemini-3.1-flash-lite-image"
+    text_model: str = "gpt-5.6-luna"
+    image_model: str = "gpt-image-1.5"
     image_size: int = 512
+    image_quality: str = "low"
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,12 +211,14 @@ class LiteLLMImageService:
         *,
         model: str,
         image_size: int,
+        image_quality: str | None = None,
         api_key: str | None = None,
         api_base: str | None = None,
         force_openai_route: bool = False,
     ) -> None:
         self._model = model
         self._image_size = image_size
+        self._image_quality = image_quality
         self._api_key = api_key
         self._api_base = api_base
         self._force_openai_route = force_openai_route
@@ -246,6 +249,8 @@ class LiteLLMImageService:
             image_kwargs["api_base"] = self._api_base
         if self._api_key is not None:
             image_kwargs["api_key"] = self._api_key
+        if self._image_quality is not None:
+            image_kwargs["quality"] = self._image_quality
         try:
             async with asyncio.timeout(IMAGE_GENERATION_TIMEOUT_SECONDS):
                 response = await aimage_generation(**image_kwargs)  # type: ignore[arg-type]

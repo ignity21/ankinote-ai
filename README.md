@@ -220,12 +220,14 @@ Batch commands also accept `--file` and `--rpm`. STEM commands accept
 
 `--llm` and `--image-model` take any model id LiteLLM recognizes; the
 provider is inferred from the id and its key is read from the matching
-environment variable. Examples:
+environment variable. Defaults are `gpt-5.6-luna` for text and
+`gpt-image-1.5` (quality `low`) for images — neither default matters much
+in practice since any provider works, including fal.ai. Examples:
 
-- `--llm`: `deepseek/deepseek-v4-flash`, `gemini/gemini-2.5-pro`,
-  `gpt-4.1`, `claude-sonnet-4-20250514`
-- `--image-model`: `gemini/gemini-3.1-flash-lite-image`, `gpt-image-1`,
-  `xai/grok-2-image`
+- `--llm`: `gpt-5.6-luna`, `deepseek/deepseek-v4-flash`, `gemini/gemini-2.5-pro`,
+  `claude-sonnet-4-20250514`
+- `--image-model`: `gpt-image-1.5`, `gemini/gemini-3.1-flash-lite-image`,
+  `fal_ai/fal-ai/flux/schnell`, `xai/grok-2-image`
 
 For example:
 
@@ -269,9 +271,9 @@ ankinote word batch --help
 
 - **Language**: Python 3.14+
 - **Package Manager**: uv
-- **AI/ML**: litellm (Gemini, GPT, Claude, DeepSeek, etc.)
+- **AI/ML**: litellm (OpenAI, Gemini, Claude, DeepSeek, fal.ai, etc.)
 - **TTS**: Google Cloud Text-to-Speech API
-- **Image Generation**: Google AI (Gemini)
+- **Image Generation**: OpenAI (gpt-image), Gemini, fal.ai
 - **Anki Integration**: AnkiConnect
 - **Card Templates**: HTML + CSS
 

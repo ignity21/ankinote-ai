@@ -88,6 +88,7 @@ def build_word_collection(
         image_service=LiteLLMImageService(
             model=config.image_model,
             image_size=config.image_size,
+            image_quality=config.image_quality,
         ),
         reasoning_effort=options.reasoning_effort,
     )
@@ -144,6 +145,7 @@ def build_stem_collection(
         image_service = LiteLLMImageService(
             model=config.image_model,
             image_size=config.image_size,
+            image_quality=config.image_quality,
         )
     return StemCollection(
         client,

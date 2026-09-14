@@ -49,7 +49,7 @@ def collection_options(f):
         type=click.Choice(THINKING_CHOICES),
         help=(
             "Override the model's extended-thinking level for this run "
-            "(default: provider default, thinking on for STEM cards)."
+            "(default: high, for STEM cards)."
         ),
     )(f)
     f = click.option(
@@ -74,7 +74,7 @@ def build_options(
         llm_model=llm,
         image_model=image_model,
         image_size=image_size,
-        reasoning_effort=resolve_thinking(thinking, unset=None),
+        reasoning_effort=resolve_thinking(thinking, unset="high"),
         card_type=None if card_type == "auto" else CardType(card_type),
     )
 

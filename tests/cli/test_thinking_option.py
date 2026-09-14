@@ -53,14 +53,14 @@ def test_stem_add_thinking_off(monkeypatch):
     assert captured["options"].reasoning_effort == DISABLE_REASONING
 
 
-def test_stem_add_thinking_defaults_to_provider_default(monkeypatch):
+def test_stem_add_thinking_defaults_to_high(monkeypatch):
     from ankinote.cli import stem
 
     captured = _capture_options(monkeypatch, stem)
     result = CliRunner().invoke(stem.stem, ["add", "What is a derivative?"])
 
     assert result.exit_code == 0, result.output
-    assert captured["options"].reasoning_effort is None
+    assert captured["options"].reasoning_effort == "high"
 
 
 def test_word_add_thinking_high(monkeypatch):

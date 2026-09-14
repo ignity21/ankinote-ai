@@ -5,12 +5,12 @@ description: Use the ankinote CLI to generate and push Anki cards. Use when the 
 
 # Ankinote CLI
 
-Generate AI-powered Anki cards from the terminal. Uses Gemini/DeepSeek via litellm for content generation, optionally generates diagrams via Gemini, and pushes cards to Anki through AnkiConnect.
+Generate AI-powered Anki cards from the terminal via litellm (OpenAI, DeepSeek, Gemini, fal.ai, or any configured provider), optionally generate images/diagrams, and push cards to Anki.
 
 ## Prerequisites
 
-- Anki running with [AnkiConnect](https://ankiweb.net/shared/info/2055492159) plugin installed
-- Environment variables: `GEMINI_API_KEY`, `ANKI_CONNECT_URL` (defaults to `http://localhost:8765`)
+- Anki running with [AnkiConnect](https://ankiweb.net/shared/info/2055492159) installed (default backend), or the in-process collection backend configured — see [references/anki-sync.md](references/anki-sync.md) if not using AnkiConnect.
+- One provider API key set (e.g. `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`, or `FAL_AI_API_KEY`); litellm picks whichever matches the model.
 - Project installed: `uv sync`
 
 ## Commands
@@ -19,9 +19,10 @@ Generate AI-powered Anki cards from the terminal. Uses Gemini/DeepSeek via litel
 
 ```
 ankinote [--version] <collection> <command> [args...]
+ankinote anki <login|logout|status|sync>   # AnkiWeb sync — see references/anki-sync.md
 ```
 
-Four collections: `word`, `phrase`, `sentence`, `stem`. Each has three subcommands: `add`, `batch`, `init`.
+Four card collections: `word`, `phrase`, `sentence`, `stem`. Each has three subcommands: `add`, `batch`, `init`.
 
 Run `uv run ankinote --help` for the full list.
 
@@ -31,14 +32,14 @@ Run `uv run ankinote --help` for the full list.
 |---|---|---|---|
 | `word` | Vocabulary cards (word + definition) | A single word per card | Yes (generated) |
 | `phrase` | Phrase/sentence cards | A phrase or short sentence | No |
-| `sentence` | Production-direction sentence cards (V2) | A sentence in the native language; AI generates the target-language version on the back | No |
-| `stem` | STEM knowledge cards (Math, CS, Finance, ML, ...) | Any question or concept (e.g. "What is a derivative?", "State Bayes' theorem") | Yes (diagrams) |
+| `sentence` | Production-direction sentence cards (V2) | A sentence in the **target** language; AI generates the native-language translation shown on the front | No |
+| `stem` | STEM knowledge cards (Math, CS, Finance, ML, ...) | Any question or concept (e.g. "What is a derivative?", "State Bayes' theorem") | Yes (diagrams) — see [references/stem.md](references/stem.md) for its extra options |
 
 ### Common options
 
-All collections accept `--llm` to override the default model (currently DeepSeek V4 Flash).
-Collections with image support accept `--image-model` (defaults to Gemini 2.5 Flash Image).
-Language-aware collections (`word`, `phrase`, `sentence`) accept `--native` and `--target`:
+All collections accept `--llm` to override the default model (currently `gpt-5.6-luna`; not load-bearing — any litellm-routable model works, including fal.ai's).
+`word` and `stem` accept `--image-model` (defaults to `gpt-image-1.5` at `low` quality, 512px) and `--image-size <pixels>`.
+Language-aware collections (`word`, `phrase`, `sentence` — not `stem`, which is language-agnostic) accept `--native` and `--target`:
 
 ```
 --native [English|Chinese(Simplified)|Chinese(Traditional)|Japanese|French|Spanish|German|Korean|other]
@@ -49,9 +50,9 @@ Defaults: `--native Chinese(Simplified) --target English`.
 
 All collections accept `--thinking [off|low|medium|high|default]` to override the
 model's extended-thinking level for that run. Omitted, `word`/`phrase`/`sentence`
-disable thinking and `stem` uses the provider default. `off` disables it,
-`default` forces the provider default, and the named levels are passed through as
-`reasoning_effort` (the current DeepSeek routing only distinguishes on/off).
+disable thinking (the default text model doesn't need it) and `stem` defaults to
+`high`. `off` disables it, `default` forces the provider default, and the named
+levels are passed through as `reasoning_effort`.
 
 ### `add` — Single card
 
@@ -72,7 +73,7 @@ uv run ankinote stem batch --file topics.txt
 ```
 
 Accepts inline arguments, `--file <path>` (one item per line), or both.
-Use `--rpm <N>` to set the rate limit (defaults vary by collection: 8 for word, 60 for sentence/phrase/stem).
+Use `--rpm <N>` to set the rate limit (defaults: 8 for `word`, 60 for `phrase`/`sentence`, 10 for `stem`).
 
 ### `init` — Create note type and deck
 
@@ -84,13 +85,6 @@ uv run ankinote stem init
 ```
 
 Must be run once before adding cards to a new collection. Creates the note type and deck in Anki.
-
-### Stem-specific options
-
-```
---image-size <pixels>    # Image size in pixels (square)
---image-model <id>       # Image model for diagram generation
-```
 
 ## Workflows
 
@@ -112,14 +106,8 @@ EOF
 uv run ankinote word batch --file words.txt --rpm 30
 ```
 
-### STEM card with diagram
-
-```bash
-uv run ankinote stem add "What is a derivative?" --image-size 1024
-```
+For STEM-specific workflows (diagrams, reference images, card-type selection), see [references/stem.md](references/stem.md).
 
 ## Troubleshooting
 
-- **"AnkiConnect not available"**: Make sure Anki is running and the AnkiConnect addon is installed
-- **"API key not found"**: Check `GEMINI_API_KEY` is set in the environment or `.env` file
-- **Model not found**: The default model strings resolve to provider-specific IDs. Override with `--llm` if needed
+See [references/troubleshooting.md](references/troubleshooting.md).
