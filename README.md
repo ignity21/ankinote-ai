@@ -110,7 +110,7 @@ vars:
 | `ANKINOTE_SHOW` | `true` | Whether to auto-open a browser tab on start |
 | `ANKI_BACKEND` | `connect` | `connect` (talk to an existing Anki via AnkiConnect) or `collection` (in-process/headless) |
 | `ANKI_CONNECT_URL` | `http://localhost:8765` | Where AnkiConnect lives (`connect` backend) |
-| `ANKI_COLLECTION_PATH` | – | Collection file to open; required for `ANKI_BACKEND=collection` |
+| `ANKI_COLLECTION_PATH` | – | Collection file to open; required for `ANKI_BACKEND=collection`. Suggested: `~/.local/share/ankinote/collection.anki2` |
 | `ANKIWEB_USERNAME` / `ANKIWEB_PASSWORD` | – | Optional: configure the `collection` backend's AnkiWeb login externally instead of through the Settings page; overrides a UI login, password never persisted to disk |
 
 The in-process (`collection`) backend additionally requires the
@@ -121,13 +121,14 @@ collection remains writable offline. A required full sync blocks writes until
 you resolve the upload/download choice, in the Settings page or via
 `ankinote anki sync`.
 
-Beside the collection file, `.sync.json` stores credential-free status,
-`.credentials.json` stores saved login credentials with mode `0600`, `.account`
-retains an account binding after logout, and `.backups/` holds recoverable
-collection backups made before full sync. Logout removes the saved credential
-and pauses synchronization without deleting the collection or media. Use a
-different data directory to switch accounts. Open a collection from only one
-process at a time.
+Data is stored in the directory containing the collection file (e.g.,
+`~/.local/share/ankinote/`). Beside the collection file, `.sync.json` stores
+credential-free status, `.credentials.json` stores saved login credentials with
+mode `0600`, `.account` retains an account binding after logout, and `.backups/`
+holds recoverable collection backups made before full sync. Logout removes the
+saved credential and pauses synchronization without deleting the collection or
+media. Use a different data directory to switch accounts. Open a collection from
+only one process at a time.
 
 ### Run the web UI with Docker
 
