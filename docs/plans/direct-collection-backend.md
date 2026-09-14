@@ -1,5 +1,8 @@
 # Direct Collection Backend and AnkiWeb Sync
 
+**Status: complete.** All stages (0–8) below are shipped on `main`. See each
+stage's "Done" note for what landed and where.
+
 ## Goal and Confirmed Behavior
 
 Add an in-process backend that uses Anki's official Python library to operate on
@@ -321,6 +324,14 @@ media sync failed still reports the local write as successful; `ankinote anki
 status` exits nonzero on an unresolved full sync and zero on `idle`;
 `sync --direction upload` resolves it non-interactively; no user-facing string
 is missing from either locale.
+
+**Done:** Implemented per [stage-7-sync-ui.md](stage-7-sync-ui.md). Settings
+panel (login/logout, status, last result, manual sync, interval, full-sync
+upload/download choice, separate local-write vs. sync reporting) lives in
+`src/ankinote/ui/sync.py`. CLI commands `ankinote anki login|logout|status|sync`
+(including `sync --direction upload|download`) live in
+`src/ankinote/cli/anki.py`. English/Simplified Chinese strings distinguish
+note type sync from AnkiWeb sync.
 
 ### Stage 8 — Packaging, deployment, migration docs
 

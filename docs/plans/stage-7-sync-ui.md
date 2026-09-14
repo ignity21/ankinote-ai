@@ -1,6 +1,7 @@
 # Stage 7: AnkiWeb 同步交互方案
 
-状态：交互设计，尚未实现。配合 [后端计划](direct-collection-backend.md) 的 Stage 7 使用。
+状态：已按此设计实现并上线，参见 [后端计划](direct-collection-backend.md) Stage 7
+的完成说明。本文档保留作为该功能的交互设计依据。
 
 ## 体验目标
 
