@@ -27,7 +27,7 @@ import base64
 import json
 import os
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -118,11 +118,12 @@ def _profile_payload(profile: ProviderProfile) -> dict[str, str]:
 def _profile_from_payload(value: object) -> ProviderProfile:
     if not isinstance(value, dict):
         raise ConfigImportError("Malformed configuration file.")
+    payload = cast(dict[str, object], value)
     return ProviderProfile(
-        vendor=str(value.get("vendor", "")),
-        model=str(value.get("model", "")),
-        base_url=str(value.get("base_url", "")),
-        api_key=str(value.get("api_key", "")),
+        vendor=str(payload.get("vendor", "")),
+        model=str(payload.get("model", "")),
+        base_url=str(payload.get("base_url", "")),
+        api_key=str(payload.get("api_key", "")),
     )
 
 

@@ -79,7 +79,7 @@ async def test_full_sync_requires_selection_and_confirmation(context):
     async with user_simulation(sync.sync_settings) as user:
         await user.open("/")
         await user.should_not_see("Use the data on AnkiWeb")
-        user.find("Use the data in ankinote").click()
+        user.find("Use the local data in AnkiNote").click()
         user.find(kind=ui.button, content="Continue").click()
         await user.should_see("Upload and replace")
         driver.full_sync.assert_not_awaited()

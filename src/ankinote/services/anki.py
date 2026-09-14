@@ -809,7 +809,7 @@ class AnkiConnectClient:
         Raises:
             RuntimeError: If AnkiConnect returns an error
         """
-        payload = {"action": action, "version": 6}
+        payload: dict[str, Any] = {"action": action, "version": 6}
         if params is not None:
             payload["params"] = params
         try:

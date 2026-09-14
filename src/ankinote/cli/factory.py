@@ -1,9 +1,8 @@
 """CLI assembly helpers for application and collection wiring."""
 
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Protocol
 
 from ankinote.app import Application
 from ankinote.collections.phrase import PhraseCollection
@@ -26,18 +25,6 @@ from ankinote.services.anki_factory import anki_backend_scope, create_anki_clien
 # ``THINKING_CHOICES`` / ``resolve_thinking`` moved to ``ankinote.services.ai``
 # (shared with the GUI); re-exported here for the CLI modules that import them.
 __all__ = ["THINKING_CHOICES", "resolve_thinking"]
-
-
-class AsyncContextManagerLike[TCollection](Protocol):
-    """Structural type for async context managers."""
-
-    async def __aenter__(self) -> TCollection:
-        """Enter the async context manager."""
-        ...
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Exit the async context manager."""
-        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,14 +145,7 @@ def build_stem_collection(
 
 
 @asynccontextmanager
-async def collection_context[TOptions, TCollection](
-    builder: Callable[
-        [AnkiCollectionClient, TOptions], AsyncContextManagerLike[TCollection]
-    ],
-    options: TOptions,
-) -> AsyncIterator[TCollection]:
-    """Create application, transport client, and collection in one place."""
+async def anki_client_scope() -> AsyncIterator[AnkiCollectionClient]:
+    """Create the application and transport client together."""
     async with Application(), anki_backend_scope():
-        client = create_anki_client()
-        async with builder(client, options) as collection:
-            yield collection
+        yield create_anki_client()

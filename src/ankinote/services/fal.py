@@ -54,7 +54,11 @@ class FalImageService:
                     if not isinstance(images, list) or not images:
                         raise RuntimeError("Fal image generation returned no images")
                     first = images[0]
-                    url = first.get("url") if isinstance(first, dict) else first
+                    url = (
+                        cast(dict[str, object], first).get("url")
+                        if isinstance(first, dict)
+                        else first
+                    )
                     if not isinstance(url, str) or not url:
                         raise RuntimeError("Fal image generation returned no image URL")
                     image = await client.get(url)

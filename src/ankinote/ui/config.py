@@ -260,7 +260,10 @@ async def fetch_fal_image_model_ids(*, api_base: str, api_key: str) -> list[str]
                 endpoint_id
                 for entry in models
                 if isinstance(entry, dict)
-                and isinstance((endpoint_id := entry.get("endpoint_id")), str)
+                and isinstance(
+                    (endpoint_id := cast(dict[str, object], entry).get("endpoint_id")),
+                    str,
+                )
                 and endpoint_id
             )
             next_cursor = payload.get("next_cursor")

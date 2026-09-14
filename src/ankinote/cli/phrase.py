@@ -7,8 +7,8 @@ from asynciolimiter import StrictLimiter
 from ankinote.cli.factory import (
     THINKING_CHOICES,
     LanguageCollectionOptions,
+    anki_client_scope,
     build_phrase_collection,
-    collection_context,
     resolve_thinking,
 )
 from ankinote.consts import Language
@@ -87,7 +87,10 @@ def init(native, target, llm, thinking):
 
     async def _run():
         options = build_options(native, target, llm, thinking)
-        async with collection_context(build_phrase_collection, options):
+        async with (
+            anki_client_scope() as client,
+            build_phrase_collection(client, options),
+        ):
             pass
 
     asyncio.run(_run())
@@ -105,7 +108,10 @@ def add(phrase, native, target, llm, thinking):
 
     async def _run():
         options = build_options(native, target, llm, thinking)
-        async with collection_context(build_phrase_collection, options) as collection:
+        async with (
+            anki_client_scope() as client,
+            build_phrase_collection(client, options) as collection,
+        ):
             await collection.generate_and_add_note(phrase)
 
     asyncio.run(_run())
@@ -172,7 +178,10 @@ def batch(phrases, file, native, target, llm, rpm, thinking):
                 except Exception as e:
                     failed.append((p, str(e)))
 
-        async with collection_context(build_phrase_collection, options) as collection:
+        async with (
+            anki_client_scope() as client,
+            build_phrase_collection(client, options) as collection,
+        ):
             await asyncio.gather(*[_process(p) for p in all_phrases])
 
     total = len(all_phrases)

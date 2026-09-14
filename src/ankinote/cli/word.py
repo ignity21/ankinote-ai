@@ -7,8 +7,8 @@ from asynciolimiter import StrictLimiter
 from ankinote.cli.factory import (
     THINKING_CHOICES,
     WordCollectionOptions,
+    anki_client_scope,
     build_word_collection,
-    collection_context,
     resolve_thinking,
 )
 from ankinote.cli.phrase import MAX_CONCURRENCY
@@ -101,7 +101,10 @@ def init(native, target, llm, image_model, image_size, thinking):
 
     async def _run():
         options = build_options(native, target, llm, image_model, image_size, thinking)
-        async with collection_context(build_word_collection, options):
+        async with (
+            anki_client_scope() as client,
+            build_word_collection(client, options),
+        ):
             pass
 
     asyncio.run(_run())
@@ -119,7 +122,10 @@ def add(word, native, target, llm, image_model, image_size, thinking):
 
     async def _run():
         options = build_options(native, target, llm, image_model, image_size, thinking)
-        async with collection_context(build_word_collection, options) as collection:
+        async with (
+            anki_client_scope() as client,
+            build_word_collection(client, options) as collection,
+        ):
             await collection.generate_and_add_note(word)
 
     asyncio.run(_run())
@@ -178,7 +184,10 @@ def batch(words, file, native, target, llm, image_model, image_size, rpm, thinki
                 except Exception as e:
                     failed.append((w, str(e)))
 
-        async with collection_context(build_word_collection, options) as collection:
+        async with (
+            anki_client_scope() as client,
+            build_word_collection(client, options) as collection,
+        ):
             await asyncio.gather(*[_process(w) for w in all_words])
 
     total = len(all_words)

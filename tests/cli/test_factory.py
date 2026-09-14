@@ -10,11 +10,11 @@ from ankinote.cli.factory import (
     LanguageCollectionOptions,
     StemCollectionOptions,
     WordCollectionOptions,
+    anki_client_scope,
     build_phrase_collection,
     build_sentence_collection,
     build_stem_collection,
     build_word_collection,
-    collection_context,
     resolve_thinking,
 )
 from ankinote.consts import Language
@@ -221,13 +221,11 @@ class TestReasoningEffortPlumbing:
         assert collection._reasoning_effort is None
 
 
-class TestCollectionContext:
-    """Assembly tests for application + client + collection setup."""
+class TestAnkiClientScope:
+    """Assembly tests for application + client setup."""
 
     @pytest.mark.asyncio
-    async def test_collection_context_builds_client_and_yields_collection(
-        self, mocker: MockerFixture
-    ):
+    async def test_anki_client_scope_yields_client(self, mocker: MockerFixture):
         built_collection = SimpleNamespace(name="collection")
         builder = mocker.Mock(return_value=FakeAsyncContextManager(built_collection))
         client = object()
@@ -242,7 +240,9 @@ class TestCollectionContext:
         )
         mocker.patch("ankinote.cli.factory.create_anki_client", return_value=client)
 
-        async with collection_context(builder, options) as collection:
-            assert collection is built_collection
+        async with anki_client_scope() as scoped_client:
+            assert scoped_client is client
+            async with builder(scoped_client, options) as collection:
+                assert collection is built_collection
 
         builder.assert_called_once_with(client, options)

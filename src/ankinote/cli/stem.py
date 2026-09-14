@@ -12,8 +12,8 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from ankinote.cli.factory import (
     THINKING_CHOICES,
     StemCollectionOptions,
+    anki_client_scope,
     build_stem_collection,
-    collection_context,
     resolve_thinking,
 )
 from ankinote.collections.stem import CardType
@@ -91,7 +91,10 @@ def init(llm, image_model, image_size, thinking, card_type):
 
     async def _run():
         options = build_options(llm, image_model, image_size, thinking, card_type)
-        async with collection_context(build_stem_collection, options) as collection:
+        async with (
+            anki_client_scope() as client,
+            build_stem_collection(client, options) as collection,
+        ):
             console.print(
                 f"[green]\u2713[/green] Initialized STEM collection: {collection.deck_name}"
             )
@@ -125,7 +128,10 @@ def add(topic, image_path, llm, image_model, image_size, thinking, card_type):
 
     async def _run():
         options = build_options(llm, image_model, image_size, thinking, card_type)
-        async with collection_context(build_stem_collection, options) as collection:
+        async with (
+            anki_client_scope() as client,
+            build_stem_collection(client, options) as collection,
+        ):
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
@@ -191,7 +197,10 @@ def batch(topics, file, llm, image_model, image_size, rpm, thinking, card_type):
         nonlocal success
         options = build_options(llm, image_model, image_size, thinking, card_type)
 
-        async with collection_context(build_stem_collection, options) as collection:
+        async with (
+            anki_client_scope() as client,
+            build_stem_collection(client, options) as collection,
+        ):
             delay = 60.0 / rpm if rpm > 0 else 0
 
             async def _process(q: str):

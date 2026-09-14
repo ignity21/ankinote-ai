@@ -22,22 +22,36 @@ def test_stem_type_selection_reaches_collection(monkeypatch, command, kind):
 
 
 def _capture_options(monkeypatch, module):
-    """Patch a CLI module's collection_context to record the options it gets."""
+    """Patch a CLI module's collection builder to record the options it gets."""
     captured: dict[str, object] = {}
 
     @asynccontextmanager
-    async def fake_context(builder, options):
+    async def fake_client_scope():
+        yield object()
+
+    class _FakeCollection:
+        deck_name = "deck"
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            return None
+
+        async def generate_and_add_note(self, *args, **kwargs):
+            return 1
+
+    def fake_builder(client, options):
         captured["options"] = options
+        return _FakeCollection()
 
-        class _FakeCollection:
-            deck_name = "deck"
-
-            async def generate_and_add_note(self, *args, **kwargs):
-                return 1
-
-        yield _FakeCollection()
-
-    monkeypatch.setattr(module, "collection_context", fake_context)
+    monkeypatch.setattr(module, "anki_client_scope", fake_client_scope)
+    builder_name = next(
+        name
+        for name in vars(module)
+        if name.startswith("build_") and name.endswith("_collection")
+    )
+    monkeypatch.setattr(module, builder_name, fake_builder)
     return captured
 
 
