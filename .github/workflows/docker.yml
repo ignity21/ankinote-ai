@@ -28,14 +28,16 @@ jobs:
       - name: Wait for PyPI release
         run: |
           version="${{ steps.v.outputs.version }}"
-          url="https://pypi.org/pypi/ankinote-ai/${version}/json"
+          # Probe the simple index (what pip actually reads) rather than the JSON
+          # API, which can return 200 before the simple index catches up.
+          url="https://pypi.org/simple/ankinote-ai/"
+          needle="ankinote_ai-${version}-py3-none-any.whl"
           for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "$url")
-            if [ "$code" = "200" ]; then
+            if curl -s "$url" | grep -qF "$needle"; then
               echo "ankinote-ai==${version} is on PyPI"
               exit 0
             fi
-            echo "attempt $i: PyPI returned $code, retrying in 10s"
+            echo "attempt $i: ankinote-ai==${version} not yet on PyPI simple index, retrying in 10s"
             sleep 10
           done
           echo "ankinote-ai==${version} did not appear on PyPI in time" >&2
