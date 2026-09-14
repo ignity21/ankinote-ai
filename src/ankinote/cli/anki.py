@@ -133,7 +133,7 @@ def status() -> None:
 @click.option(
     "--direction",
     type=click.Choice(["upload", "download"]),
-    help="Resolve a required full sync: upload replaces AnkiWeb; download replaces ankinote. A collection backup is required first.",
+    help="Resolve a required full sync: upload replaces AnkiWeb; download replaces AnkiNote. A collection backup is required first.",
 )
 def sync(direction: Literal["upload", "download"] | None) -> None:
     """Sync now, optionally resolving a full sync without prompting."""

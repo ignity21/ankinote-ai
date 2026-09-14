@@ -12,7 +12,7 @@ from .stem import stem
 from .word import word
 
 _VERSION_BANNER = f"""╔══════════════════════════════════════════════╗
-║               ankinote v{__version__}                ║
+║               AnkiNote v{__version__}                ║
 ║       AI-powered Anki card generator        ║
 ╚══════════════════════════════════════════════╝"""
 

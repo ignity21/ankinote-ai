@@ -1,4 +1,4 @@
-# Deploying the ankinote web GUI
+# Deploying the AnkiNote web GUI
 
 Published images (multi-arch `amd64` + `arm64`), tags `latest`, `<major>.<minor>`,
 `<version>`:

@@ -1,6 +1,7 @@
 """ankinote GUI — NiceGUI-powered interface for Anki card generation."""
 
 import os
+from pathlib import Path
 
 from loguru import logger
 from nicegui import app, ui
@@ -28,6 +29,9 @@ _PRIMARY = "#3d6fa6"
 _PRIMARY_DARK = "#6fa8dc"
 _SURFACE_DARK = "#242833"
 _PAGE_DARK = "#16181d"
+
+_STATIC_DIR = Path(__file__).parent / "static"
+app.add_static_files("/static", _STATIC_DIR)
 
 _THEME_CSS = f"""
 <style>
@@ -65,7 +69,9 @@ def _create_layout() -> None:
     with ui.header(elevated=True).classes(
         "items-center justify-between px-4 h-14 text-white"
     ):
-        ui.label("ankinote").classes("text-lg font-bold text-white")
+        with ui.row().classes("items-center gap-2"):
+            ui.image("/static/ankinote-logo-micro.svg").classes("w-7 h-7")
+            ui.label("AnkiNote").classes("text-lg font-bold text-white")
 
         with ui.row().classes("items-center gap-1"):
 
@@ -197,8 +203,8 @@ async def _close_anki_backend() -> None:
 def start_gui() -> None:
     """Launch the ankinote GUI."""
     ui.run(
-        title="ankinote",
-        favicon="📝",
+        title="AnkiNote",
+        favicon=_STATIC_DIR / "ankinote-logo-micro.svg",
         host=os.getenv("ANKINOTE_HOST", "0.0.0.0"),
         port=int(os.getenv("ANKINOTE_PORT", "8080")),
         storage_secret=os.getenv("ANKINOTE_STORAGE_SECRET", "ankinote-ui-session-key"),

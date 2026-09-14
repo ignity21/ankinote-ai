@@ -1,4 +1,8 @@
-# ankinote
+# AnkiNote
+
+<p align="center">
+  <img src="src/ankinote/ui/static/ankinote-logo.svg" width="96" alt="AnkiNote logo">
+</p>
 
 <p align="center">
   <a href="https://pypi.org/project/ankinote-ai/"><img src="https://img.shields.io/pypi/v/ankinote-ai?color=blue&logo=pypi&logoColor=white" alt="PyPI version"></a>
@@ -11,7 +15,7 @@
 
 ## 📖 About
 
-ankinote is an automated Anki flashcard generator that uses litellm to support a wide range of AI providers — Gemini, GPT, Claude, DeepSeek, and more — for generating definitions, examples, mnemonics, and images, then syncs directly with Anki through AnkiConnect.
+AnkiNote is an automated Anki flashcard generator that uses litellm to support a wide range of AI providers — Gemini, GPT, Claude, DeepSeek, and more — for generating definitions, examples, mnemonics, and images, then syncs directly with Anki through AnkiConnect.
 
 ## ✨ Features
 
@@ -43,7 +47,7 @@ uv pip install ankinote-ai
 uv tool install ankinote-ai
 ```
 
-ankinote has two front ends that share the same card-generation engine:
+AnkiNote has two front ends that share the same card-generation engine:
 
 - **Web UI** (`ankinote-gui`) — everything, including AI provider keys, is
   configured from the browser. No `.env` file needed. Start here if you're new.
@@ -147,11 +151,11 @@ AnkiConnect host setup, and building locally. The published image bundles the
 
 ---
 
-# ankinote CLI - Usage Guide
+# AnkiNote CLI - Usage Guide
 
 ## Overview
 
-The ankinote CLI is a scriptable, batch-friendly way to generate AI-powered
+The AnkiNote CLI is a scriptable, batch-friendly way to generate AI-powered
 Anki flashcards from the terminal. Unlike the web UI, it's configured with a
 `.env` file / environment variables rather than in-browser settings.
 
@@ -348,7 +352,7 @@ make check
 
 ## Documentation
 - [Note Types](docs/NoteType.md)
-- [Skill](skills/ankinote-cli/SKILL.md) — for using ankinote with AI coding assistants
+- [Skill](skills/ankinote-cli/SKILL.md) — for using AnkiNote with AI coding assistants
 
 ## 📄 License
 
