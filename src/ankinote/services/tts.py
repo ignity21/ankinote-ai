@@ -36,13 +36,13 @@ class SpeechSynthesizer(Protocol):
 
 
 class GoogleTTSService:
-    def __init__(self, language_code: str = "en-US", model: str = "Neural2"):
+    def __init__(self, language_code: str = "en-US", model: str = "Chirp3-HD"):
         """
         Initialize the Google TTS service with the specified language and model.
 
         Args:
             language_code: BCP-47 language tag (e.g. "en-US", "ja-JP").
-            model: Voice model family to filter by (e.g. "Neural2", "Wavenet").
+            model: Voice model family to filter by (e.g. "Chirp3-HD", "Neural2").
         """
         self._tts_cli: TextToSpeechAsyncClient | None = None
         self._lang_code = language_code
@@ -76,7 +76,7 @@ class GoogleTTSService:
         is called at most once per service lifetime.
 
         Returns:
-            A list of voice name strings (e.g. ["en-US-Neural2-A", ...]).
+            A list of voice name strings (e.g. ["en-US-Chirp3-HD-Aoede", ...]).
         """
         if self._available_voices:
             return self._available_voices
@@ -129,9 +129,11 @@ class GoogleTTSService:
             audio_encoding: Output audio format. Defaults to MP3.
                             Other options: LINEAR16, OGG_OPUS, MULAW, ALAW.
             speaking_rate:  Playback speed multiplier in the range [0.25, 4.0].
-                            1.0 is normal speed.
+                            1.0 is normal speed. Chirp3-HD voices only accept
+                            [0.25, 2.0].
             pitch:          Pitch shift in semitones, in the range [-20.0, 20.0].
-                            0.0 is the default pitch.
+                            0.0 is the default pitch. Chirp3-HD voices reject
+                            any non-zero pitch.
 
         Returns:
             raw audio content
