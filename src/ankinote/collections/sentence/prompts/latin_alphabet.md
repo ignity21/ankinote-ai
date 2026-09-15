@@ -1,4 +1,4 @@
-# US English Sentence Anki Card Generation
+# Sentence Anki Card Generation
 Return **only** valid JSON object, no markdown, no comments. The *input* you receive will be the **target-language sentence**.
 
 ```json

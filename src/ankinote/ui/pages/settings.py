@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 import httpx
 from nicegui import events, ui
 
-from ankinote.consts import Language
+from ankinote.consts import TARGET_LANGUAGES, Language
 from ankinote.ui.config import (
     CUSTOM_VENDOR,
     DEFAULT_IMAGE_PROFILE_NAME,
@@ -603,6 +603,7 @@ def settings_page() -> None:
         _section(t("settings.defaults"))
 
         language_options = [lang.value for lang in Language]
+        target_language_options = [lang.value for lang in TARGET_LANGUAGES]
 
         native_select = ui.select(
             label=t("settings.native"),
@@ -612,7 +613,7 @@ def settings_page() -> None:
 
         target_select = ui.select(
             label=t("settings.target"),
-            options=language_options,
+            options=target_language_options,
             value=settings.defaults.target_language,
         ).classes("w-full")
 

@@ -30,7 +30,10 @@ class WordMediaFiles:
 
 
 _LANGUAGE_TO_FILENAME: dict[Language, str] = {
-    Language.ENGLISH: "english_us.md",
+    Language.ENGLISH: "latin_alphabet.md",
+    Language.FRENCH: "latin_alphabet.md",
+    Language.SPANISH: "latin_alphabet.md",
+    Language.GERMAN: "latin_alphabet.md",
     Language.JAPANESE: "japanese.md",
 }
 

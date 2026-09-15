@@ -1,4 +1,4 @@
-# US English Vocabulary Anki Card Generation
+# Vocabulary Anki Card Generation
 
 Return only valid JSON. No markdown. No comments.
 
@@ -8,18 +8,18 @@ Goal: generate compact learning data for Anki cards optimized for recognition, r
 [
   {
     "lemma": "string",
-    "part_of_speech": "noun|verb|adjective|adverb|phrasal verb",
-    "pronunciation": "/IPA/ or null; use US English IPA",
+    "part_of_speech": "noun|verb|adjective|adverb|other; use the standard part-of-speech category for the target language (e.g. include 'phrasal verb' only if the target language has genuine phrasal or separable verbs)",
+    "pronunciation": "/IPA/ or null; use standard IPA for the target language",
     "difficulty": "A1|A2|B1|B2|C1|C2",
     "morphology": "Short morphology note such as plural, past tense, comparative, stress pattern, or null",
     "core_meaning": {
-      "target_text": "Short English definition(s) for this part of speech. If the POS has several distinct common senses, give up to 3, separated by '; '. Join close synonyms of one sense with '、'.",
+      "target_text": "Short target-language definition(s) for this part of speech. If the POS has several distinct common senses, give up to 3, separated by '; '. Join close synonyms of one sense with '、'.",
       "native_text": "Native-language translation(s), in the same order and count as target_text, separated by '; '.",
       "is_visualizable": true
     },
     "examples": [
       {
-        "sentence": "One high-value English example sentence using the lemma or an inflected form.",
+        "sentence": "One high-value target-language example sentence using the lemma or an inflected form.",
         "translation": "Native-language translation.",
         "highlights": ["useful collocation or inflected form"]
       }

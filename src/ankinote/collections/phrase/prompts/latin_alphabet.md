@@ -1,4 +1,4 @@
-# US English Phrase / Idiom Anki Card Generation
+# Phrase / Idiom Anki Card Generation
 
 Return only valid JSON. No markdown. No comments.
 
@@ -9,18 +9,18 @@ Goal: generate compact learning data for Anki cards optimized for recognition an
   "phrase": "string",
   "difficulty": "A1|A2|B1|B2|C1|C2",
   "core_meaning": {
-    "target_text": "English explanation of the phrase meaning.",
+    "target_text": "Target-language explanation of the phrase meaning.",
     "native_text": "Native-language translation of the core meaning."
   },
   "supporting_meanings": [
     {
-      "target_text": "English gloss for a secondary useful sense.",
+      "target_text": "Target-language gloss for a secondary useful sense.",
       "native_text": "Native-language translation."
     }
   ],
   "examples": [
     {
-      "sentence": "Natural English sentence containing the phrase.",
+      "sentence": "Natural target-language sentence containing the phrase.",
       "translation": "Native-language translation.",
       "highlights": ["exact surface form of the phrase as it appears in sentence"]
     }
@@ -41,7 +41,7 @@ Goal: generate compact learning data for Anki cards optimized for recognition an
 | `core_meaning` | Exactly one primary sense. Keep it short and memorable. |
 | `supporting_meanings` | 0–2 brief secondary sense summaries. Do not duplicate core meaning. |
 | `examples` | 1–3 items; sentence must be `level ≤ difficulty`; `highlights` must match exact casing/inflection in `sentence` |
-| `usage_pattern` | Provide for idioms, phrasal verbs, and fixed expressions. Use `null` for simple phrases. |
+| `usage_pattern` | Provide for idioms, multi-word verbs, and fixed expressions. Use `null` for simple phrases. |
 | `production_hint` | Must help recall the phrase but must not contain the phrase itself. |
 | `confusions` | 0–2 items about near-synonyms, false friends, or common misuse. |
 | `etymology_or_memory` | When present, written in user's native language, explicitly mentioning the main native-language meaning anchor. |

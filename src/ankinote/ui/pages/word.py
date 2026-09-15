@@ -8,7 +8,7 @@ from nicegui import ui
 
 from ankinote.app import Application
 from ankinote.collections.word import WordCollection
-from ankinote.consts import Language
+from ankinote.consts import TARGET_LANGUAGES, Language
 from ankinote.services.ai import LiteLLMTextService
 from ankinote.services.anki_factory import create_anki_client
 from ankinote.ui.config import (
@@ -56,6 +56,7 @@ def word_page() -> None:
             ui.notify(message, type=notification_type)
 
     language_options = [lang.value for lang in Language]
+    target_language_options = [lang.value for lang in TARGET_LANGUAGES]
 
     # -- Form ----------------------------------------------------------------
     with ui.column().classes("w-full max-w-2xl mx-auto p-6 gap-4"):
@@ -81,7 +82,7 @@ def word_page() -> None:
 
             target_select = ui.select(
                 label=t("settings.target"),
-                options=language_options,
+                options=target_language_options,
                 value=settings.defaults.target_language,
             ).classes("flex-1")
 

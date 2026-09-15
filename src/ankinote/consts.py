@@ -21,3 +21,14 @@ RUBY_ANNOTATION_LANGUAGES = {
     Language.CHINESE_T,
     Language.KOREAN,
 }
+
+# Languages selectable as the "target" (language being learned): every
+# collection's prompt templates must cover each of these. Keep in sync with
+# the `_LANGUAGE_TO_FILENAME` maps in collections/{word,sentence,phrase}/generator.py.
+TARGET_LANGUAGES = (
+    Language.ENGLISH,
+    Language.FRENCH,
+    Language.SPANISH,
+    Language.GERMAN,
+    Language.JAPANESE,
+)
