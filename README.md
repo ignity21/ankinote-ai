@@ -101,11 +101,11 @@ identically from the Web UI and CLI.
 
 Generating a card for **chameleon** from the Word page:
 
-![Word page after generating a "chameleon" card](docs/img/word-generate.png)
+<img src="docs/img/word-generate.png" alt="Word page after generating a &quot;chameleon&quot; card" width="420">
 
 The resulting card, reviewed in Anki:
 
-![The generated "chameleon" card in Anki](docs/img/anki-card.png)
+<img src="docs/img/anki-card.png" alt="The generated &quot;chameleon&quot; card in Anki" width="320">
 
 ### Configuration — all in the Settings page
 
