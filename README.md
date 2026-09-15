@@ -55,8 +55,11 @@ uv tool install ankinote-ai
 
 AnkiNote has two front ends that share the same card-generation engine:
 
-- **Web UI** (`ankinote-gui`) — everything, including AI provider keys, is
-  configured from the browser. No `.env` file needed. Start here if you're new.
+- **Web UI** (`ankinote-gui`) — AI provider keys and app settings are
+  configured from the browser, no `.env` file needed for those. A handful of
+  process-level settings (Anki backend, ports, secrets — see
+  [below](#what-still-needs-to-be-set-outside-the-browser)) are still env
+  vars. Start here if you're new.
 - **CLI** (`ankinote`) — scriptable, batch-friendly, configured via `.env` /
   environment variables. See the [CLI usage guide](docs/cli-usage.md).
 
