@@ -94,6 +94,16 @@ Switch with `ANKI_BACKEND=connect` / `collection` (see the [env var
 table](#what-still-needs-to-be-set-outside-the-browser) below); both work
 identically from the Web UI and CLI.
 
+### Example
+
+Generating a card for **chameleon** from the Word page:
+
+![Word page after generating a "chameleon" card](docs/img/word-generate.png)
+
+The resulting card, reviewed in Anki:
+
+![The generated "chameleon" card in Anki](docs/img/anki-card.png)
+
 ### Configuration — all in the Settings page
 
 Nothing needs to be in a `.env` file for web UI use; every credential lives in
