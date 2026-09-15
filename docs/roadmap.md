@@ -76,6 +76,44 @@ Open items:
 
 Status: minor follow-ups; not scheduled.
 
+## Productization: single GUI-only surface
+
+Direction under consideration, nothing decided or scheduled: shrink ankinote
+to one clear entry point — the Web UI — instead of a CLI + GUI + env-var
+config split.
+
+- **Drop the CLI?** Open question: `.agents/skills/ankinote-cli/SKILL.md`
+  currently makes `ankinote` the integration point for AI coding assistants
+  (batch card generation via agent), not just a terminal feature. Cutting the
+  CLI removes that path unless it's replaced — a documented HTTP API is the
+  natural substitute, since the Web UI already runs on FastAPI (NiceGUI).
+  Whether to keep an automation surface at all depends on who the
+  productized version is for.
+- **Remove the remaining env vars; configure everything from Settings.**
+  Checked 2026-09-15: mostly feasible without a redesign.
+  `services/anki_factory.py` already isolates backend selection behind one
+  seam (`resolve_backend()` / `start_anki_backend()` / `stop_anki_backend()`),
+  and `ui/config.py`'s `apply_env()` already pushes Settings-page values into
+  the same `envs` object those functions read from — so a live
+  `ANKI_BACKEND` / `ANKI_COLLECTION_PATH` switch in the Settings page (stop
+  the current backend, apply the new values, start the new one) is UI work
+  on an existing seam, not new plumbing. `ANKINOTE_HOST`/`PORT` and
+  `ANKINOTE_STORAGE_SECRET` can't become Settings fields — the GUI needs them
+  before there's any UI to configure from — but the storage secret at least
+  could be auto-generated and persisted on first run instead of required as
+  an env var, making it invisible to the user in practice.
+- **Rewrite the UI as a real JS/TS frontend?** Raised, not decided either
+  way. NiceGUI is Python-server-driven (Vue/Quasar over WebSocket, no
+  standalone REST API today); a real SPA would mean building a formal API
+  first — which would also give the CLI-removal question an automation
+  alternative — plus a full UI rewrite: the highest-cost of these options for
+  what is currently a single-maintainer Python codebase. Only worth it if
+  NiceGUI is structurally blocking something specific (offline PWA, native
+  packaging, a frontend hire), not on its own.
+
+Status: idea only; not scheduled. Explicitly parked until the user has
+thought it through — do not start implementation from this section alone.
+
 ## Future major version: deployable web service
 
 Explore evolving ankinote from a local CLI/NiceGUI application into a web
@@ -94,6 +132,10 @@ cover:
   controls;
 - how web users create and synchronize cards with Anki, without assuming a
   publicly reachable AnkiConnect instance.
+
+2026-09-15: previously set aside to keep the product single-user; back on the
+table as a maybe-later if the single-user product gains traction (see the
+productization section above). Still no architecture work started.
 
 Status: idea only; not scheduled and not a commitment to a specific framework
 or authentication provider.
