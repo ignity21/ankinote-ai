@@ -221,6 +221,7 @@ __marimo__/
 *.jpg
 *.jpeg
 *.png
+!docs/img/*.png
 
 # project
 output/
