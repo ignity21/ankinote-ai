@@ -109,36 +109,22 @@ def _create_layout() -> None:
                         )
 
     # Left drawer (navigation)
-    with ui.left_drawer(value=True):
+    _nav_link_classes = (
+        "w-full px-3 py-2 rounded text-base no-underline text-gray-700 "
+        "dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-gray-700/40"
+    )
+    with ui.left_drawer(value=True).props("width=270"):
         ui.label(t("nav.navigation")).classes(
             "text-sm font-semibold text-gray-500 dark:text-slate-300 px-4 pt-4 pb-2"
         )
 
         with ui.column().classes("w-full gap-1 px-2"):
-            ui.link(t("nav.word_cards"), "/").classes(
-                "w-full px-3 py-2 rounded dark:text-slate-200 hover:bg-gray-100 "
-                "dark:hover:bg-gray-700/40"
-            )
-            ui.link(t("nav.phrase_cards"), "/phrases").classes(
-                "w-full px-3 py-2 rounded dark:text-slate-200 hover:bg-gray-100 "
-                "dark:hover:bg-gray-700/40"
-            )
-            ui.link(t("nav.sentence_cards"), "/sentences").classes(
-                "w-full px-3 py-2 rounded dark:text-slate-200 hover:bg-gray-100 "
-                "dark:hover:bg-gray-700/40"
-            )
-            ui.link(t("nav.stem_cards"), "/stem").classes(
-                "w-full px-3 py-2 rounded dark:text-slate-200 hover:bg-gray-100 "
-                "dark:hover:bg-gray-700/40"
-            )
-            ui.link(t("nav.card_types"), "/notetypes").classes(
-                "w-full px-3 py-2 rounded dark:text-slate-200 hover:bg-gray-100 "
-                "dark:hover:bg-gray-700/40"
-            )
-            ui.link(t("nav.settings"), "/settings").classes(
-                "w-full px-3 py-2 rounded dark:text-slate-200 hover:bg-gray-100 "
-                "dark:hover:bg-gray-700/40"
-            )
+            ui.link(t("nav.word_cards"), "/").classes(_nav_link_classes)
+            ui.link(t("nav.phrase_cards"), "/phrases").classes(_nav_link_classes)
+            ui.link(t("nav.sentence_cards"), "/sentences").classes(_nav_link_classes)
+            ui.link(t("nav.stem_cards"), "/stem").classes(_nav_link_classes)
+            ui.link(t("nav.card_types"), "/notetypes").classes(_nav_link_classes)
+            ui.link(t("nav.settings"), "/settings").classes(_nav_link_classes)
 
 
 @ui.page("/")
