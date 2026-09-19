@@ -10,6 +10,7 @@ class Sense(BaseModel):
 
     target_text: str
     native_text: str
+    image_gloss: str | None = None
     is_visualizable: bool = False
 
 

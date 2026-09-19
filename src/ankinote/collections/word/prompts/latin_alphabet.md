@@ -15,6 +15,7 @@ Goal: generate compact learning data for Anki cards optimized for recognition, r
     "core_meaning": {
       "target_text": "Short target-language definition(s) for this part of speech. If the POS has several distinct common senses, give up to 3, separated by '; '. Join close synonyms of one sense with '、'.",
       "native_text": "Native-language translation(s), in the same order and count as target_text, separated by '; '.",
+      "image_gloss": "Short English gloss(es) of this sense, used only for image generation. Same order and count as target_text, separated by '; '. Write in English even if it duplicates target_text (e.g. when the target language is already English).",
       "is_visualizable": true
     },
     "examples": [
@@ -33,7 +34,8 @@ Goal: generate compact learning data for Anki cards optimized for recognition, r
 
 Rules:
 - Return 1 to 2 records total for the queried word. Keep only the most common and worth-learning parts of speech.
-- `core_meaning` covers only the queried part of speech. Include its 1 to 3 most common senses, `target_text` and `native_text` sense-aligned and both separated by '; '. Keep each sense short and memorable.
+- `core_meaning` covers only the queried part of speech. Include its 1 to 3 most common senses, `target_text`, `native_text`, and `image_gloss` sense-aligned and all separated by '; '. Keep each sense short and memorable.
+- `image_gloss` must always be written in English regardless of the target or native language. It exists only to drive an image-generation model and should be a short, concrete, literal description of the sense (not the word itself).
 - `examples` must contain 1 to 2 high-value examples tied to the core meaning.
 - `collocations` must contain 2 to 4 common combinations when available.
 - `confusions` may contain 0 to 2 items about near-synonyms, false friends, or common misuse.

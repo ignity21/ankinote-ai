@@ -110,7 +110,6 @@ body.nightMode {
   color: var(--accent-deep);
 }
 
-.audio-stage,
 .plain-text,
 .type-result {
   text-align: center;
@@ -129,8 +128,7 @@ body.nightMode {
   color: var(--muted);
 }
 
-.audio-line,
-.audio-stage {
+.audio-line {
   font-size: 1.15rem;
 }
 
@@ -160,6 +158,21 @@ body.nightMode {
 .meaning-prompt {
   display: grid;
   gap: 0.7rem;
+}
+
+.audio-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.9rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.audio-hint-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .meaning-row {
@@ -314,9 +327,14 @@ rt {
 
 .replay-button svg,
 .audio-line svg,
-.audio-stage svg,
 .example-audio svg {
   width: 1.3rem;
   height: 1.3rem;
+  vertical-align: middle;
+}
+
+.audio-hint svg {
+  width: 1rem;
+  height: 1rem;
   vertical-align: middle;
 }

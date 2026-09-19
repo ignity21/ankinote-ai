@@ -1,6 +1,11 @@
 <section class="stage-card spelling-card">
   <div class="eyebrow">Spelling</div>
-  {{#headword_audio}}<div class="audio-stage">{{headword_audio}}</div>{{/headword_audio}}
   {{#core_meaning}}<div class="meaning-prompt">{{core_meaning}}</div>{{/core_meaning}}
+  {{#headword_audio}}
+  <div class="audio-hint">
+    <span class="audio-hint-label">Pronunciation hint</span>
+    <span class="inline-audio">{{headword_audio}}</span>
+  </div>
+  {{/headword_audio}}
   <div class="type-area">{{type:lemma}}</div>
 </section>

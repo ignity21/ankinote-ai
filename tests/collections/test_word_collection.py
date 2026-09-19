@@ -6,6 +6,7 @@ from typing import cast
 import pytest
 
 from ankinote.collections.word.collection import MediaReferences, WordCollection
+from ankinote.collections.word.generator import _build_image_user_prompt
 from ankinote.collections.word.models import Example, Sense, WordModel
 from ankinote.consts import Language
 from ankinote.services.ai import ImageGenerationService, TextGenerationService
@@ -191,6 +192,28 @@ def test_word_model_accepts_japanese_ruby_schema():
 
     assert model.lemma == "招き猫"
     assert model.core_meaning.target_text.startswith("<招:まね>")
+
+
+def test_build_image_user_prompt_prefers_english_gloss_over_target_text():
+    sense = Sense(
+        target_text="雨や日差しを防ぐための道具",
+        native_text="伞",
+        image_gloss="a tool used to block rain or sunlight",
+        is_visualizable=True,
+    )
+
+    prompt = _build_image_user_prompt("傘", sense)
+
+    assert "a tool used to block rain or sunlight" in prompt
+    assert "雨や日差しを防ぐための道具" not in prompt
+
+
+def test_build_image_user_prompt_falls_back_to_target_text_when_gloss_missing():
+    sense = Sense(target_text="a tool used to block rain", native_text="伞")
+
+    prompt = _build_image_user_prompt("umbrella", sense)
+
+    assert "a tool used to block rain" in prompt
 
 
 def test_convert_to_note_type_renders_expected_html():

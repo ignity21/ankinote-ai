@@ -20,6 +20,7 @@ Furigana rule:
     "core_meaning": {
       "target_text": "この品詞の短い日本語の説明。よく使う語義が複数あれば最大3つ、'; ' で区切る。近い同義語は '、' でまとめる。漢字には必ず <Kanji:reading> を付ける。",
       "native_text": "母語での短い訳。target_text と同じ順序・同じ数で '; ' で区切る。",
+      "image_gloss": "この語義の短い英語での説明（画像生成専用。必ず英語で書く）。target_text と同じ順序・同じ数で '; ' で区切る。",
       "is_visualizable": true
     },
     "examples": [
@@ -38,7 +39,8 @@ Furigana rule:
 
 Rules:
 - Return 1 to 2 records total for the queried word. Keep only the most common and worth-learning parts of speech.
-- `core_meaning` covers only the queried part of speech. Include its 1 to 3 most common senses, `target_text` and `native_text` sense-aligned and both separated by '; '.
+- `core_meaning` covers only the queried part of speech. Include its 1 to 3 most common senses, `target_text`, `native_text`, and `image_gloss` sense-aligned and all separated by '; '.
+- `image_gloss` must always be written in English regardless of the target or native language, even if that duplicates `target_text`. It exists only to drive an image-generation model and should be a short, concrete, literal description of the sense (not the word itself).
 - `examples` must contain 1 to 2 high-value examples tied to the core meaning.
 - `collocations` must contain 2 to 4 common combinations when available.
 - `confusions` may contain 0 to 2 short native-language contrasts or misuse warnings.
