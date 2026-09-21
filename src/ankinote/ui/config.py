@@ -100,6 +100,47 @@ def get_provider_models(provider: str) -> list[str]:
     return models or list(info["models"])
 
 
+def _provider_request_headers_params(
+    litellm_provider: str, api_key: str
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Build the auth headers/query params for a provider's model-list endpoint."""
+    if litellm_provider == "anthropic":
+        return {"x-api-key": api_key, "anthropic-version": "2023-06-01"}, {
+            "limit": "1000"
+        }
+    if litellm_provider in {"gemini", "vertex_ai"}:
+        return {}, {"key": api_key, "pageSize": "1000"}
+    return {"Authorization": f"Bearer {api_key}"}, {}
+
+
+async def _fetch_models_payload(
+    api_base: str, litellm_provider: str, api_key: str
+) -> dict:
+    """GET a provider's model-list endpoint and return the decoded JSON.
+
+    Handles the OpenAI-compatible ``GET /models`` shape (OpenAI, DeepSeek,
+    vLLM, LM Studio, …), Anthropic's ``/v1/models``, and Gemini's
+    ``/v1beta/models``. Raises ``httpx`` errors when the request fails.
+    """
+    import httpx
+
+    headers, params = _provider_request_headers_params(litellm_provider, api_key)
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        response = await client.get(
+            f"{api_base.rstrip('/')}/models", headers=headers, params=params or None
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+def _prefixed_names(names: list[str], model_prefix: str | None) -> list[str]:
+    """Ensure each id carries the prefix litellm expects (e.g. ``gemini/…``)."""
+    prefix = model_prefix or ""
+    return sorted(
+        {name if name.startswith(prefix) else prefix + name for name in names if name}
+    )
+
+
 async def fetch_model_ids(
     *,
     litellm_provider: str,
@@ -107,30 +148,8 @@ async def fetch_model_ids(
     api_key: str,
     model_prefix: str | None = None,
 ) -> list[str]:
-    """Ask a provider's HTTP API for the model ids it currently serves.
-
-    Handles the OpenAI-compatible ``GET /models`` shape (OpenAI, DeepSeek,
-    vLLM, LM Studio, …), Anthropic's ``/v1/models``, and Gemini's
-    ``/v1beta/models``. Ids come back prefixed the way litellm expects them
-    (e.g. ``gemini/…``). Raises ``httpx`` errors when the request fails.
-    """
-    import httpx
-
-    url = f"{api_base.rstrip('/')}/models"
-    headers: dict[str, str] = {}
-    params: dict[str, str] = {}
-    if litellm_provider == "anthropic":
-        headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01"}
-        params = {"limit": "1000"}
-    elif litellm_provider in {"gemini", "vertex_ai"}:
-        params = {"key": api_key, "pageSize": "1000"}
-    else:
-        headers = {"Authorization": f"Bearer {api_key}"}
-
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        response = await client.get(url, headers=headers, params=params or None)
-        response.raise_for_status()
-        payload = response.json()
+    """Ask a provider's HTTP API for the model ids it currently serves."""
+    payload = await _fetch_models_payload(api_base, litellm_provider, api_key)
 
     if litellm_provider in {"gemini", "vertex_ai"}:
         names = [
@@ -145,10 +164,32 @@ async def fetch_model_ids(
             if isinstance(entry, dict) and entry.get("id")
         ]
 
-    prefix = model_prefix or ""
-    return sorted(
-        {name if name.startswith(prefix) else prefix + name for name in names if name}
+    return _prefixed_names(names, model_prefix)
+
+
+def _gemini_image_names(entries: list[dict]) -> list[str]:
+    """Prefer entries marked for image generation; else fall back to all."""
+    has_filter = any(
+        "imageGeneration" in entry.get("supportedGenerationMethods", [])
+        for entry in entries
     )
+    return [
+        entry.get("name", "").removeprefix("models/")
+        for entry in entries
+        if not has_filter
+        or "imageGeneration" in entry.get("supportedGenerationMethods", [])
+    ]
+
+
+def _openai_image_names(entries: list[dict]) -> list[str]:
+    """Prefer dall-e/gpt-image ids when present; else fall back to all ids."""
+    valid = [entry for entry in entries if isinstance(entry, dict) and entry.get("id")]
+    has_filter = any(entry["id"].startswith(("dall-e", "gpt-image")) for entry in valid)
+    return [
+        entry["id"]
+        for entry in valid
+        if not has_filter or entry["id"].startswith(("dall-e", "gpt-image", "image"))
+    ]
 
 
 async def fetch_image_model_ids(
@@ -162,64 +203,17 @@ async def fetch_image_model_ids(
 
     When a provider explicitly marks which models support image generation,
     only those are returned. Otherwise, all models are returned as a fallback.
-    Ids come back prefixed the way litellm expects them (e.g. ``gemini/…``).
-    Raises ``httpx`` errors when the request fails.
     """
-    import httpx
-
     if litellm_provider == "fal_ai":
         return await fetch_fal_image_model_ids(api_base=api_base, api_key=api_key)
 
-    url = f"{api_base.rstrip('/')}/models"
-    headers: dict[str, str] = {}
-    params: dict[str, str] = {}
-    if litellm_provider == "anthropic":
-        headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01"}
-        params = {"limit": "1000"}
-    elif litellm_provider in {"gemini", "vertex_ai"}:
-        params = {"key": api_key, "pageSize": "1000"}
-    else:
-        headers = {"Authorization": f"Bearer {api_key}"}
-
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        response = await client.get(url, headers=headers, params=params or None)
-        response.raise_for_status()
-        payload = response.json()
-
+    payload = await _fetch_models_payload(api_base, litellm_provider, api_key)
     if litellm_provider in {"gemini", "vertex_ai"}:
-        all_entries = payload.get("models", [])
-        has_filter = any(
-            "imageGeneration" in entry.get("supportedGenerationMethods", [])
-            for entry in all_entries
-        )
-        names = [
-            entry.get("name", "").removeprefix("models/")
-            for entry in all_entries
-            if not has_filter
-            or "imageGeneration" in entry.get("supportedGenerationMethods", [])
-        ]
+        names = _gemini_image_names(payload.get("models", []))
     else:
-        all_entries = payload.get("data", [])
-        has_filter = any(
-            entry.get("id", "").startswith(("dall-e", "gpt-image"))
-            for entry in all_entries
-            if isinstance(entry, dict)
-        )
-        names = [
-            entry["id"]
-            for entry in all_entries
-            if isinstance(entry, dict)
-            and entry.get("id")
-            and (
-                not has_filter
-                or entry["id"].startswith(("dall-e", "gpt-image", "image"))
-            )
-        ]
+        names = _openai_image_names(payload.get("data", []))
 
-    prefix = model_prefix or ""
-    return sorted(
-        {name if name.startswith(prefix) else prefix + name for name in names if name}
-    )
+    return _prefixed_names(names, model_prefix)
 
 
 async def fetch_fal_image_model_ids(*, api_base: str, api_key: str) -> list[str]:
