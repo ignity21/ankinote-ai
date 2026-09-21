@@ -74,3 +74,4 @@ class PhraseNoteType:
     associations: str
     production_hint: str
     user_notes: str
+    target_language: str

@@ -159,6 +159,12 @@ body.nightMode {
   color: var(--muted);
 }
 
+/* Recall asks for the target-language phrase, so the prompt must not show
+   it: only the native-language gloss belongs on this front. */
+.recall-card .meaning-target {
+  display: none;
+}
+
 .hint-box {
   margin-top: 1rem;
   padding: 0.9rem;

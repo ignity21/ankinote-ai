@@ -42,9 +42,16 @@ class RecordingModelService:
         self.updated_templates: list[object] = []
         self.updated_css: str | None = None
         self.exists_result = False
+        self.ensured_fields: list[str] | None = None
+        self.added_fields: list[str] = []
 
     async def exists(self, model_name: str) -> bool:
         return self.exists_result
+
+    async def get(self, model_name: str) -> NoteModel | None:
+        if not self.exists_result:
+            return None
+        return NoteModel(id=1, name=model_name, fields=[], templates=[], css="")
 
     async def create(
         self,
@@ -68,6 +75,12 @@ class RecordingModelService:
 
     async def update_styling(self, model_name: str, css: str) -> None:
         self.updated_css = css
+
+    async def add_field(self, model_name: str, field_name: str) -> None:
+        self.added_fields.append(field_name)
+
+    async def ensure_fields(self, model_name: str, field_names: list[str]) -> None:
+        self.ensured_fields = field_names
 
 
 class DummyDeckService:
@@ -235,6 +248,7 @@ def test_convert_to_note_type_renders_expected_html():
     assert "img0.png" in note["image_refs"]
     assert "<figcaption>" not in note["image_refs"]
     assert note["user_notes"] == ""
+    assert note["target_language"] == "English"
 
 
 def test_core_meaning_splits_multiple_senses_into_rows():
@@ -340,6 +354,7 @@ async def test_ensure_note_type_exists_registers_v2_templates():
         "etymology_or_memory",
         "image_refs",
         "user_notes",
+        "target_language",
     ]
     templates = cast(list[dict[str, str]], created["templates"])
     assert [template["Name"] for template in templates] == [
@@ -355,6 +370,10 @@ async def test_ensure_note_type_exists_registers_v2_templates():
     assert "core_meaning" in spelling_front
     assert "headword_audio" in spelling_front
     assert "examples" not in spelling_front
+    assert "{{target_language}}" in spelling_front
+
+    recall_front = next(t for t in templates if t["Name"] == "Recall")["Front"]
+    assert "{{target_language}}" in recall_front
 
 
 @pytest.mark.asyncio
@@ -365,5 +384,22 @@ async def test_ensure_note_type_exists_updates_existing_model():
     await collection._ensure_note_type_exists()
 
     assert models.created is None
+    assert models.ensured_fields == [
+        "lemma",
+        "part_of_speech",
+        "pronunciation",
+        "headword_audio",
+        "difficulty",
+        "morphology",
+        "core_meaning",
+        "examples",
+        "example_audio_refs",
+        "collocations",
+        "confusions",
+        "etymology_or_memory",
+        "image_refs",
+        "user_notes",
+        "target_language",
+    ]
     assert len(models.updated_templates) == 3
     assert models.updated_css is not None

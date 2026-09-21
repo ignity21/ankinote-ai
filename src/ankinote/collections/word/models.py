@@ -55,3 +55,4 @@ class WordNoteType:
     etymology_or_memory: str
     image_refs: str
     user_notes: str
+    target_language: str

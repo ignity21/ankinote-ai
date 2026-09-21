@@ -190,6 +190,13 @@ body.nightMode {
   color: var(--muted);
 }
 
+/* Recall/Spelling ask for the target-language word, so the prompt must not
+   show it: only the native-language gloss belongs on these fronts. */
+.recall-card .meaning-target,
+.spelling-card .meaning-target {
+  display: none;
+}
+
 .section-title {
   font-size: 0.72rem;
   text-transform: uppercase;

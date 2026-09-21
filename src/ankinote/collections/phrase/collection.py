@@ -121,6 +121,8 @@ class PhraseCollection:
             logger.success(f"Created note type: {self.notetype_name}")
             return
 
+        # Ensure new fields (e.g. target_language) are added for existing note types
+        await self._anki_client.models.ensure_fields(self.notetype_name, fields)
         await self._anki_client.models.update_templates(
             self.notetype_name,
             [
@@ -261,6 +263,7 @@ class PhraseCollection:
             ),
             "production_hint": self._format_text_block(phrase_model.production_hint),
             "user_notes": "",
+            "target_language": self._target_language.value,
         }
 
     def _format_core_meaning(self, sense: Sense) -> str:
