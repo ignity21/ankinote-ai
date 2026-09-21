@@ -3,6 +3,7 @@
 import functools
 import json
 import os
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import cast
@@ -65,32 +66,40 @@ CUSTOM_VENDOR_TEMPLATE: dict = {
 _EXCLUDED_NAME_SUBSTRINGS = ("-audio-", "-search-", "/container")
 
 
-@functools.cache
-def _discover_chat_models(
-    litellm_provider: str, model_prefix: str | None
+def _discover_models(
+    litellm_provider: str, predicate: Callable[[str, dict], bool]
 ) -> tuple[str, ...]:
-    """Pull the current chat-capable model ids for a provider from litellm's catalog."""
+    """Filter litellm's bundled model catalog down to one provider's ids."""
     try:
         import litellm
     except ImportError:
         return ()
 
-    models: list[str] = []
-    for name, info in litellm.model_cost.items():
-        if not isinstance(info, dict):
-            continue
-        if info.get("litellm_provider") != litellm_provider:
-            continue
-        if info.get("mode") != "chat":
-            continue
-        if name.startswith("ft:"):
-            continue
-        if any(sub in name for sub in _EXCLUDED_NAME_SUBSTRINGS):
-            continue
-        if model_prefix is not None and not name.startswith(model_prefix):
-            continue
-        models.append(name)
+    models = [
+        name
+        for name, info in litellm.model_cost.items()
+        if isinstance(info, dict)
+        and info.get("litellm_provider") == litellm_provider
+        and predicate(name, info)
+    ]
     return tuple(sorted(models))
+
+
+@functools.cache
+def _discover_chat_models(
+    litellm_provider: str, model_prefix: str | None
+) -> tuple[str, ...]:
+    """Pull the current chat-capable model ids for a provider from litellm's catalog."""
+
+    def is_chat_model(name: str, info: dict) -> bool:
+        return (
+            info.get("mode") == "chat"
+            and not name.startswith("ft:")
+            and not any(sub in name for sub in _EXCLUDED_NAME_SUBSTRINGS)
+            and (model_prefix is None or name.startswith(model_prefix))
+        )
+
+    return _discover_models(litellm_provider, is_chat_model)
 
 
 def get_provider_models(provider: str) -> list[str]:
@@ -315,30 +324,20 @@ def _discover_image_models(
     litellm_provider: str, model_prefix: str | None
 ) -> tuple[str, ...]:
     """Pull the current image-generation model ids for a provider from litellm."""
-    try:
-        import litellm
-    except ImportError:
-        return ()
-
     prefix = model_prefix or ""
-    models: list[str] = []
-    for name, info in litellm.model_cost.items():
-        if not isinstance(info, dict):
-            continue
-        if info.get("litellm_provider") != litellm_provider:
-            continue
-        if info.get("mode") != "image_generation":
-            continue
-        if model_prefix is not None and not name.startswith(model_prefix):
-            continue
+
+    def is_image_model(name: str, info: dict) -> bool:
         # Drop litellm's size-/step-prefixed catalog variants
         # (e.g. "1024-x-1024/dall-e-2"). fal_ai's canonical model ids are
         # themselves slash-separated paths (e.g. "fal-ai/flux/schnell"), so
         # this "no nested slash" heuristic does not apply to it.
-        if litellm_provider != "fal_ai" and "/" in name.removeprefix(prefix):
-            continue
-        models.append(name)
-    return tuple(sorted(models))
+        return (
+            info.get("mode") == "image_generation"
+            and (model_prefix is None or name.startswith(model_prefix))
+            and (litellm_provider == "fal_ai" or "/" not in name.removeprefix(prefix))
+        )
+
+    return _discover_models(litellm_provider, is_image_model)
 
 
 def get_image_provider_models(provider: str) -> list[str]:
