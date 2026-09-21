@@ -12,9 +12,11 @@ from ankinote.ui.config import (
     ProviderProfile,
     Settings,
     apply_env,
+    default_collection_path,
     fetch_image_model_ids,
     fetch_model_ids,
     get_image_provider_models,
+    get_or_create_storage_secret,
     image_provider_for,
     load_settings,
     save_settings,
@@ -217,6 +219,109 @@ def test_apply_env_syncs_tts_key_into_envs(monkeypatch: pytest.MonkeyPatch) -> N
 
     assert envs.GOOGLE_TTS_KEY == "imported-key"
     assert os.environ["GOOGLE_TTS_KEY"] == "imported-key"
+
+
+def test_apply_env_syncs_anki_backend_into_envs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("ankinote.config.envs.ANKI_BACKEND", "connect")
+    monkeypatch.setattr("ankinote.config.envs.ANKI_COLLECTION_PATH", "")
+    monkeypatch.delenv("ANKI_BACKEND", raising=False)
+    monkeypatch.delenv("ANKI_COLLECTION_PATH", raising=False)
+
+    apply_env(
+        Settings(
+            anki_backend="collection", anki_collection_path="/data/collection.anki2"
+        )
+    )
+
+    from ankinote.config import envs
+
+    assert envs.ANKI_BACKEND == "collection"
+    assert envs.ANKI_COLLECTION_PATH == "/data/collection.anki2"
+    assert os.environ["ANKI_BACKEND"] == "collection"
+    assert os.environ["ANKI_COLLECTION_PATH"] == "/data/collection.anki2"
+
+
+def test_apply_env_leaves_anki_backend_untouched_when_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("ankinote.config.envs.ANKI_BACKEND", "collection")
+    apply_env(Settings())
+
+    from ankinote.config import envs
+
+    assert envs.ANKI_BACKEND == "collection"
+
+
+def test_default_collection_path_is_under_home_local_share() -> None:
+    path = default_collection_path()
+    assert path.endswith(("ankinote/collection.anki2", "ankinote\\collection.anki2"))
+
+
+def test_settings_round_trip_preserves_anki_backend_fields(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    save_settings(
+        Settings(anki_backend="collection", anki_collection_path="/data/x.anki2")
+    )
+    loaded = load_settings()
+    assert loaded.anki_backend == "collection"
+    assert loaded.anki_collection_path == "/data/x.anki2"
+
+
+def test_load_settings_seeds_anki_backend_from_env_when_file_absent(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setattr("ankinote.config.envs.ANKI_BACKEND", "collection")
+    monkeypatch.setattr(
+        "ankinote.config.envs.ANKI_COLLECTION_PATH", "/env/collection.anki2"
+    )
+    settings = load_settings()
+    assert settings.anki_backend == "collection"
+    assert settings.anki_collection_path == "/env/collection.anki2"
+
+
+def test_load_settings_prefers_saved_anki_backend_over_env(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setattr("ankinote.config.envs.ANKI_BACKEND", "collection")
+    save_settings(Settings(anki_backend="connect", anki_collection_path=""))
+    settings = load_settings()
+    assert settings.anki_backend == "connect"
+
+
+def test_storage_secret_env_override_is_used_and_not_persisted(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setenv("ANKINOTE_STORAGE_SECRET", "from-env")
+    assert get_or_create_storage_secret() == "from-env"
+    assert not (tmp_path / "ankinote" / "storage_secret").exists()
+
+
+def test_storage_secret_is_generated_and_persisted_on_first_run(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.delenv("ANKINOTE_STORAGE_SECRET", raising=False)
+
+    secret = get_or_create_storage_secret()
+    assert secret
+    secret_file = tmp_path / "ankinote" / "storage_secret"
+    assert secret_file.read_text(encoding="utf-8").strip() == secret
+
+
+def test_storage_secret_is_reused_across_calls(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.delenv("ANKINOTE_STORAGE_SECRET", raising=False)
+
+    first = get_or_create_storage_secret()
+    second = get_or_create_storage_secret()
+    assert first == second
 
 
 def test_settings_round_trip_preserves_profiles(tmp_path, monkeypatch) -> None:

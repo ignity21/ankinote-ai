@@ -12,7 +12,11 @@ from ankinote.services.anki_factory import (
     stop_anki_backend,
 )
 from ankinote.services.collection_runtime import CollectionRuntimeError
-from ankinote.ui.config import load_settings, save_settings
+from ankinote.ui.config import (
+    get_or_create_storage_secret,
+    load_settings,
+    save_settings,
+)
 from ankinote.ui.i18n import SUPPORTED_LOCALES, set_locale, t
 from ankinote.ui.pages.notetypes import notetypes_page
 from ankinote.ui.pages.phrase import phrase_page
@@ -193,7 +197,7 @@ def start_gui() -> None:
         favicon=_STATIC_DIR / "ankinote-logo-micro.svg",
         host=os.getenv("ANKINOTE_HOST", "0.0.0.0"),
         port=int(os.getenv("ANKINOTE_PORT", "8080")),
-        storage_secret=os.getenv("ANKINOTE_STORAGE_SECRET", "ankinote-ui-session-key"),
+        storage_secret=get_or_create_storage_secret(),
         show=os.getenv("ANKINOTE_SHOW", "true").lower() != "false",
         reload=False,
     )

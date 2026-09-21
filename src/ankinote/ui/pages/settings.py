@@ -9,6 +9,13 @@ import httpx
 from nicegui import events, ui
 
 from ankinote.consts import TARGET_LANGUAGES, Language
+from ankinote.services.anki_factory import (
+    COLLECTION_BACKEND,
+    CONNECT_BACKEND,
+    AnkiBackendConfigError,
+    switch_backend,
+)
+from ankinote.services.collection_runtime import CollectionRuntimeError
 from ankinote.ui.config import (
     CUSTOM_VENDOR,
     DEFAULT_IMAGE_PROFILE_NAME,
@@ -19,6 +26,7 @@ from ankinote.ui.config import (
     ProviderProfile,
     Settings,
     apply_env,
+    default_collection_path,
     fetch_image_model_ids,
     fetch_model_ids,
     get_image_provider_models,
@@ -528,6 +536,8 @@ def settings_page() -> None:  # noqa: C901 - UI composition
                 generate_image=bool(generate_image_switch.value),
             ),
             ui_language=settings.ui_language,
+            anki_backend=backend_select.value or CONNECT_BACKEND,
+            anki_collection_path=(collection_path_input.value or "").strip(),
         )
 
     def _persist(new_settings: Settings) -> None:
@@ -593,6 +603,72 @@ def settings_page() -> None:  # noqa: C901 - UI composition
 
     with ui.column().classes("w-full max-w-3xl mx-auto p-6 md:p-8 gap-7"):
         ui.label(t("settings.title")).classes("settings-title")
+
+        _section(t("settings.backend"))
+        ui.label(t("settings.backend_help")).classes("text-sm text-slate-500")
+
+        backend_select = ui.select(
+            label=t("settings.backend"),
+            options={
+                CONNECT_BACKEND: t("settings.backend_connect"),
+                COLLECTION_BACKEND: t("settings.backend_collection"),
+            },
+            value=settings.anki_backend or CONNECT_BACKEND,
+        ).classes("w-full")
+
+        with ui.row().classes("w-full items-end gap-2") as collection_path_row:
+            collection_path_input = ui.input(
+                label=t("settings.backend_path"),
+                value=settings.anki_collection_path,
+            ).classes("flex-grow")
+            ui.button(
+                t("settings.backend_use_default"),
+                on_click=lambda: collection_path_input.set_value(
+                    default_collection_path()
+                ),
+            ).props("flat no-caps")
+        ui.label(t("settings.backend_path_help")).classes("text-sm text-slate-500")
+
+        def _update_collection_path_visibility() -> None:
+            collection_path_row.set_visibility(
+                backend_select.value == COLLECTION_BACKEND
+            )
+
+        backend_select.on_value_change(lambda _: _update_collection_path_visibility())
+        _update_collection_path_visibility()
+
+        backend_busy = {"value": False}
+        backend_status = ui.label().classes("text-sm")
+
+        async def _apply_backend() -> None:
+            if backend_busy["value"]:
+                return
+            if (
+                backend_select.value == COLLECTION_BACKEND
+                and not (collection_path_input.value or "").strip()
+            ):
+                ui.notify(t("settings.backend_path_required"), type="warning")
+                return
+            new_settings = _build_settings()
+            if new_settings is None:
+                return
+            backend_busy["value"] = True
+            apply_backend_button.set_enabled(False)
+            backend_status.set_text(t("settings.backend_switching"))
+            try:
+                _persist(new_settings)
+                await switch_backend()
+            except (AnkiBackendConfigError, CollectionRuntimeError, OSError) as exc:
+                backend_status.set_text(format_error(exc))
+                backend_busy["value"] = False
+                apply_backend_button.set_enabled(True)
+                return
+            ui.notify(t("settings.backend_switched"), type="positive")
+            ui.navigate.reload()
+
+        apply_backend_button = ui.button(
+            t("settings.backend_apply"), on_click=_apply_backend, icon="restart_alt"
+        ).props("outline no-caps")
 
         sync_settings()
 

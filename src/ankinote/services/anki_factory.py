@@ -99,6 +99,15 @@ async def stop_anki_backend() -> None:
     await runtime.close()
 
 
+async def switch_backend() -> None:
+    """Restart the backend after ``envs.ANKI_BACKEND``/``ANKI_COLLECTION_PATH``
+    change, e.g. from a Settings-page save. Closes whatever is currently open
+    (a no-op for ``connect``) before opening the newly configured backend.
+    """
+    await stop_anki_backend()
+    await start_anki_backend()
+
+
 @asynccontextmanager
 async def anki_backend_scope(*, synchronize: bool = True) -> AsyncIterator[None]:
     """Own backend-wide resources for one process scope.

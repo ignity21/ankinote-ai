@@ -13,6 +13,8 @@ from ankinote.services.anki_factory import (
     anki_backend_scope,
     create_anki_client,
     get_shared_runtime,
+    stop_anki_backend,
+    switch_backend,
 )
 from ankinote.services.anki_sync import (
     SyncSnapshot,
@@ -145,6 +147,43 @@ class TestBackendScope:
             assert await client.models.exists("Basic")
             with pytest.raises(SyncWriteBlocked):
                 await client.decks.create("D")
+
+
+class TestSwitchBackend:
+    async def test_switch_from_collection_to_connect_closes_the_runtime(
+        self, collection_env: None, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        try:
+            await switch_backend()
+            assert get_shared_runtime() is not None
+            monkeypatch.setattr("ankinote.config.envs.ANKI_BACKEND", "connect")
+            await switch_backend()
+            assert get_shared_runtime() is None
+            assert isinstance(create_anki_client(), AnkiConnectClient)
+        finally:
+            await stop_anki_backend()
+
+    async def test_switch_between_two_collection_paths_reopens_the_runtime(
+        self, collection_env: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        other_dir = tmp_path / "other"
+        other_dir.mkdir()
+        other_path = other_dir / "collection.anki2"
+        try:
+            await switch_backend()
+            first = get_shared_runtime()
+            assert first is not None
+
+            monkeypatch.setattr(
+                "ankinote.config.envs.ANKI_COLLECTION_PATH", str(other_path)
+            )
+            await switch_backend()
+            second = get_shared_runtime()
+            assert second is not None
+            assert second is not first
+            assert second.path == str(other_path)
+        finally:
+            await stop_anki_backend()
 
 
 def test_no_direct_backend_construction_outside_factory() -> None:

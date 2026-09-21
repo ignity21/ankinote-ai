@@ -3,6 +3,7 @@
 import functools
 import json
 import os
+import secrets
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -464,6 +465,8 @@ class Settings:
     api_keys: dict[str, str] = field(default_factory=dict)
     defaults: DefaultsConfig = field(default_factory=DefaultsConfig)
     ui_language: str = "en"
+    anki_backend: str = ""
+    anki_collection_path: str = ""
 
 
 def _get_config_dir() -> Path:
@@ -479,6 +482,33 @@ def _get_config_path() -> Path:
     return _get_config_dir() / "settings.json"
 
 
+def get_or_create_storage_secret() -> str:
+    """Return the session-signing secret for the NiceGUI web app.
+
+    ``ANKINOTE_STORAGE_SECRET`` overrides everything else, for deployments
+    (e.g. Docker) that manage secrets externally. Otherwise reuse the secret
+    persisted from a previous run, or generate and persist a new one on first
+    run — so a fresh install gets a private secret without the user ever
+    having to set an env var.
+    """
+    env_secret = os.environ.get("ANKINOTE_STORAGE_SECRET")
+    if env_secret:
+        return env_secret
+
+    path = _get_config_dir() / "storage_secret"
+    if path.exists():
+        secret = path.read_text(encoding="utf-8").strip()
+        if secret:
+            return secret
+
+    secret = secrets.token_hex(32)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as stream:
+        os.fchmod(stream.fileno(), 0o600)
+        stream.write(secret)
+    return secret
+
+
 def _parse_profiles(raw: dict) -> dict[str, ProviderProfile]:
     return {
         name: ProviderProfile(
@@ -492,8 +522,20 @@ def _parse_profiles(raw: dict) -> dict[str, ProviderProfile]:
     }
 
 
+def default_collection_path() -> str:
+    """Suggested path for a first-time ``collection`` backend switch."""
+    return str(Path.home() / ".local" / "share" / "ankinote" / "collection.anki2")
+
+
 def _settings_from_current_shape(data: dict) -> Settings:
-    """Parse a settings.json already in the multi-profile shape."""
+    """Parse a settings.json already in the multi-profile shape.
+
+    ``anki_backend``/``anki_collection_path`` fall back to the current
+    process env only when the key is absent from the file (an
+    already-multi-profile settings.json saved before this feature existed) —
+    once the Settings page has saved either field once, its stored value is
+    always non-empty and the env var is no longer consulted.
+    """
     text_providers = _parse_profiles(data.get("text_providers", {}))
     image_providers = _parse_profiles(data.get("image_providers", {}))
     return Settings(
@@ -507,6 +549,9 @@ def _settings_from_current_shape(data: dict) -> Settings:
         api_keys=data.get("api_keys", {}),
         defaults=DefaultsConfig(**data.get("defaults", {})),
         ui_language=data.get("ui_language", "en"),
+        anki_backend=data.get("anki_backend") or envs.ANKI_BACKEND,
+        anki_collection_path=data.get("anki_collection_path")
+        or envs.ANKI_COLLECTION_PATH,
     )
 
 
@@ -604,6 +649,9 @@ def _settings_from_legacy_shape(data: dict) -> Settings:
         api_keys={"GOOGLE_TTS_KEY": old_api_keys.get("GOOGLE_TTS_KEY", "")},
         defaults=DefaultsConfig(**data.get("defaults", {})),
         ui_language=data.get("ui_language", "en"),
+        anki_backend=data.get("anki_backend") or envs.ANKI_BACKEND,
+        anki_collection_path=data.get("anki_collection_path")
+        or envs.ANKI_COLLECTION_PATH,
     )
 
 
@@ -616,7 +664,10 @@ def load_settings() -> Settings:
     """
     path = _get_config_path()
     if not path.exists():
-        return Settings()
+        return Settings(
+            anki_backend=envs.ANKI_BACKEND,
+            anki_collection_path=envs.ANKI_COLLECTION_PATH,
+        )
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         if "text_providers" in data:
@@ -643,25 +694,34 @@ def save_settings(settings: Settings) -> None:
         "api_keys": settings.api_keys,
         "defaults": asdict(settings.defaults),
         "ui_language": settings.ui_language,
+        "anki_backend": settings.anki_backend,
+        "anki_collection_path": settings.anki_collection_path,
     }
     path = _get_config_path()
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
 def apply_env(settings: Settings) -> None:
-    """Push the Google TTS API key into the running process.
+    """Push env-var-backed settings (TTS key, Anki backend) into the process.
 
     Provider-profile keys are now passed explicitly to each LiteLLM service
     call (see ``ProviderProfile``) rather than resolved via env-var
-    indirection, so this only concerns the separate Google Cloud TTS
-    integration.
+    indirection, so this only concerns settings that other modules still read
+    off ``envs``: the Google Cloud TTS key and the Anki backend selection.
 
     ``envs`` is a singleton whose attributes are bound once at import time, so
-    updating only ``os.environ`` would leave a key entered in the UI (or pulled
-    in via config import) invisible to :mod:`ankinote.services.tts`. Keep both
-    in sync.
+    updating only ``os.environ`` would leave a value entered in the UI (or
+    pulled in via config import) invisible to the modules that read ``envs``
+    directly (:mod:`ankinote.services.tts`, :mod:`ankinote.services.anki_factory`).
+    Keep both in sync.
     """
     key = settings.api_keys.get("GOOGLE_TTS_KEY", "")
     if key:
         os.environ["GOOGLE_TTS_KEY"] = key
         envs.GOOGLE_TTS_KEY = key
+    if settings.anki_backend:
+        os.environ["ANKI_BACKEND"] = settings.anki_backend
+        envs.ANKI_BACKEND = settings.anki_backend
+    if settings.anki_collection_path:
+        os.environ["ANKI_COLLECTION_PATH"] = settings.anki_collection_path
+        envs.ANKI_COLLECTION_PATH = settings.anki_collection_path

@@ -143,3 +143,60 @@ async def test_transfer_section_renders_and_export_validates(
         user.find("Passphrase").type("short")
         user.find(kind=ui.button, content="Export file").click()
         await user.should_see("at least")
+
+
+async def test_backend_defaults_to_connect_and_hides_collection_path(
+    _rendered_settings,
+) -> None:
+    async with user_simulation(settings_module.settings_page) as user:
+        await user.open("/")
+        await user.should_see("Anki Backend")
+        await user.should_see("AnkiConnect (desktop app)")
+        await user.should_not_see("Collection file path")
+
+
+async def test_selecting_collection_backend_reveals_the_path_input(
+    _rendered_settings,
+) -> None:
+    async with user_simulation(settings_module.settings_page) as user:
+        await user.open("/")
+        user.find("AnkiConnect (desktop app)").click()  # opens the dropdown
+        user.find("Direct collection (no desktop app needed)").click()  # picks it
+        await user.should_see("Collection file path")
+
+
+async def test_apply_with_empty_collection_path_warns_instead_of_switching(
+    _rendered_settings,
+) -> None:
+    async with user_simulation(settings_module.settings_page) as user:
+        await user.open("/")
+        user.find("AnkiConnect (desktop app)").click()
+        user.find("Direct collection (no desktop app needed)").click()
+        user.find(kind=ui.button, content="Apply").click()
+        await user.should_see("Enter a collection file path first")
+
+
+async def test_apply_with_a_path_persists_and_switches_backend(
+    _rendered_settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    switched = {"count": 0}
+
+    async def fake_switch_backend() -> None:
+        switched["count"] += 1
+
+    monkeypatch.setattr(settings_module, "switch_backend", fake_switch_backend)
+
+    async with user_simulation(settings_module.settings_page) as user:
+        await user.open("/")
+        user.find("AnkiConnect (desktop app)").click()
+        user.find("Direct collection (no desktop app needed)").click()
+        user.find("Collection file path").type("/tmp/ankinote-test/collection.anki2")
+        user.find(kind=ui.button, content="Apply").click()
+        await user.should_see("Anki backend switched")
+
+    assert switched["count"] == 1
+    assert _rendered_settings["settings"].anki_backend == "collection"
+    assert (
+        _rendered_settings["settings"].anki_collection_path
+        == "/tmp/ankinote-test/collection.anki2"
+    )
