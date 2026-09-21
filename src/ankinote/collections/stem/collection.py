@@ -229,21 +229,12 @@ class StemCollection:
             raise ValueError("Card type does not match the selected collection")
         notetype_name = note_type_name(stem_model.card_type)
         image_key = f"{stem_model.card_type}:{topic or stem_model.front}"
+        image_bytes = await self._resolve_image_bytes(
+            stem_model, image_bytes, on_image_error
+        )
 
-        # Store a diagram: use the caller's bytes, else generate from the model.
-        image_filename: str | None = None
-        if image_bytes is None and (
-            stem_model.image_description and self._generator._image_service
-        ):
-            try:
-                image_bytes = await self._generator.generate_image(
-                    stem_model.image_description
-                )
-            except Exception as exc:
-                logger.warning(f"Image generation failed: {exc}")
-                if on_image_error is not None:
-                    on_image_error(exc)
         async with anki_write_batch(self._anki_client):
+            image_filename: str | None = None
             if image_bytes is not None:
                 card_hash = hashlib.md5(image_key.encode()).hexdigest()[:12]
                 image_filename = f"stem_{card_hash}.png"
@@ -251,32 +242,57 @@ class StemCollection:
                 logger.info(f"Stored diagram: {image_filename}")
 
             note_data = self._build_note_data(stem_model, image_filename)
-
-            all_tags = list(tags or [])
-            all_tags.extend(stem_model.tags)
-            all_tags.append("AI-generated")
-
-            note_id = await self._anki_client.notes.find(
-                deck_name=self.deck_name,
-                unique_fields={"front": stem_model.front},
-                model_name=notetype_name,
+            all_tags = [*(tags or []), *stem_model.tags, "AI-generated"]
+            return await self._upsert_note(
+                notetype_name, note_data, all_tags, stem_model.front
             )
 
-            if note_id is not None:
-                await self._anki_client.notes.update_fields(note_id, note_data)
-                await self._anki_client.notes.update_tags(note_id, all_tags)
-                logger.info(f"Updated note {note_id}")
-            else:
-                note_id = await self._anki_client.notes.add(
-                    deck_name=self.deck_name,
-                    model_name=notetype_name,
-                    fields=note_data,
-                    tags=all_tags,
-                    allow_duplicate=False,
-                )
-                logger.info(f"Created note {note_id}")
+    async def _resolve_image_bytes(
+        self,
+        stem_model: StemCard,
+        image_bytes: bytes | None,
+        on_image_error: Callable[[Exception], None] | None,
+    ) -> bytes | None:
+        """Use the caller's bytes as-is, else generate a diagram from the model."""
+        if image_bytes is not None or not (
+            stem_model.image_description and self._generator._image_service
+        ):
+            return image_bytes
+        try:
+            return await self._generator.generate_image(stem_model.image_description)
+        except Exception as exc:
+            logger.warning(f"Image generation failed: {exc}")
+            if on_image_error is not None:
+                on_image_error(exc)
+            return None
 
+    async def _upsert_note(
+        self,
+        notetype_name: str,
+        note_data: dict[str, str],
+        tags: list[str],
+        front: str,
+    ) -> int:
+        """Update the note with a matching front, else create a new one."""
+        note_id = await self._anki_client.notes.find(
+            deck_name=self.deck_name,
+            unique_fields={"front": front},
+            model_name=notetype_name,
+        )
+        if note_id is not None:
+            await self._anki_client.notes.update_fields(note_id, note_data)
+            await self._anki_client.notes.update_tags(note_id, tags)
+            logger.info(f"Updated note {note_id}")
             return note_id
+        note_id = await self._anki_client.notes.add(
+            deck_name=self.deck_name,
+            model_name=notetype_name,
+            fields=note_data,
+            tags=tags,
+            allow_duplicate=False,
+        )
+        logger.info(f"Created note {note_id}")
+        return note_id
 
     def _build_note_data(
         self,
