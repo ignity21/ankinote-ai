@@ -6,9 +6,12 @@ import os
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from ankinote.config import envs
+
+if TYPE_CHECKING:
+    import httpx
 
 # Vendor templates — the ones the GUI offers directly in the "Add provider"
 # dialog (autofills Base URL + drives model discovery/fetch heuristics for a
@@ -225,6 +228,30 @@ async def fetch_image_model_ids(
     return _prefixed_names(names, model_prefix)
 
 
+def _fal_endpoint_ids(models: list[object]) -> set[str]:
+    """Pull valid endpoint_id strings out of one page of Fal's model list."""
+    return {
+        endpoint_id
+        for entry in models
+        if isinstance(entry, dict)
+        and isinstance(
+            (endpoint_id := cast(dict[str, object], entry).get("endpoint_id")), str
+        )
+        and endpoint_id
+    }
+
+
+async def _fetch_fal_models_page(
+    client: httpx.AsyncClient, api_base: str, headers: dict[str, str], params: dict
+) -> dict[str, object]:
+    """GET one page of Fal's model search and return its decoded JSON."""
+    response = await client.get(
+        f"{api_base.rstrip('/')}/models", headers=headers, params=params
+    )
+    response.raise_for_status()
+    return cast(dict[str, object], response.json())
+
+
 async def fetch_fal_image_model_ids(*, api_base: str, api_key: str) -> list[str]:
     """List active text-to-image endpoint IDs through Fal's Platform API.
 
@@ -249,26 +276,12 @@ async def fetch_fal_image_model_ids(*, api_base: str, api_key: str) -> list[str]
                 params.pop("cursor", None)
             else:
                 params["cursor"] = cursor
-            response = await client.get(
-                f"{api_base.rstrip('/')}/models",
-                headers=headers,
-                params=params,
-            )
-            response.raise_for_status()
-            payload = cast(dict[str, object], response.json())
+            payload = await _fetch_fal_models_page(client, api_base, headers, params)
             models = payload.get("models", [])
             if not isinstance(models, list):
                 raise TypeError("Fal model search returned an invalid models list")
-            endpoint_ids.update(
-                endpoint_id
-                for entry in models
-                if isinstance(entry, dict)
-                and isinstance(
-                    (endpoint_id := cast(dict[str, object], entry).get("endpoint_id")),
-                    str,
-                )
-                and endpoint_id
-            )
+            endpoint_ids.update(_fal_endpoint_ids(models))
+
             next_cursor = payload.get("next_cursor")
             if not isinstance(next_cursor, str) or not next_cursor:
                 break
