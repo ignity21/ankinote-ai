@@ -54,21 +54,24 @@ def _build_text_service(settings: Settings) -> LiteLLMTextService:
     )
 
 
+def _normalize_field(name: str, value: str) -> list[str] | str | None:
+    """Convert one edited field's stripped text into its model-ready value."""
+    if name == "tags":
+        return [tag.strip() for tag in value.split(",") if tag.strip()]
+    if name == "steps":
+        return [step.strip() for step in value.splitlines() if step.strip()]
+    if name == "image_description":
+        return value or None
+    return value
+
+
 def _edited_card(model: StemCard, fields: dict[str, str]) -> StemCard:
     """Validate all edited fields before a save can reach Anki."""
     values = model.model_dump()
-    for name, value in fields.items():
-        value = value.strip()
+    for name, raw in fields.items():
         if name.startswith("variable_"):
             continue
-        if name == "tags":
-            values[name] = [tag.strip() for tag in value.split(",") if tag.strip()]
-        elif name == "steps":
-            values[name] = [step.strip() for step in value.splitlines() if step.strip()]
-        elif name == "image_description":
-            values[name] = value or None
-        else:
-            values[name] = value
+        values[name] = _normalize_field(name, raw.strip())
     if isinstance(model, FormulaModel):
         values["variables"] = [
             {
