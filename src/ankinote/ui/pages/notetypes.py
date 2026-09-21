@@ -502,106 +502,112 @@ def _inject_styles() -> None:
     )
 
 
-def _render_panel(status: TypeStatus, busy: bool, on_sync) -> None:  # noqa: C901 - UI composition
-    """Render one note type as a physical flashcard showing its anatomy."""
-    spec = status.spec
-    accent = spec.accent
-    state = status.state
-
-    with ui.element("div").classes("nt-card w-full").style(f"--nt-accent: {accent}"):
-        # -- header ----------------------------------------------------------
-        with ui.element("div").classes("nt-card-head"):
-            with ui.element("div").classes("nt-type-mark"):
-                with (
-                    ui.element("div").classes("nt-icon").style(f"--nt-accent: {accent}")
-                ):
-                    ui.icon(spec.icon).classes("text-[1.35rem]")
-                with ui.column().classes("gap-0"):
-                    with ui.row().classes("items-baseline gap-0"):
-                        ui.label(spec.title).classes("nt-title")
-                        ui.label(spec.notetype_name).classes("nt-ntname")
-                    ui.label(
-                        f"{spec.deck_name} · {len(spec.fields)} fields · "
-                        f"{len(spec.templates)} {'card' if len(spec.templates) == 1 else 'cards'}"
-                    ).classes("nt-meta")
-            with ui.element("div").classes("nt-head-actions"):
-                stamp_class = {
-                    "synced": "nt-stamp-ok",
-                    "update": "nt-stamp-warn",
-                    "missing": "nt-stamp-bad",
-                }[state]
-                ui.label(_STATE_LABEL[state]).classes(f"nt-stamp {stamp_class}")
-                if state == "missing":
-                    ui.button(
-                        t("notetypes.create"),
-                        on_click=lambda: asyncio.ensure_future(on_sync(spec)),
-                        icon="add_circle_outline",
-                    ).props("unelevated no-caps").classes("nt-btn nt-btn-accent").style(
-                        f"--nt-accent: {accent}"
-                    )
-                else:
-                    ui.button(
-                        t("notetypes.sync_again")
-                        if state == "synced"
-                        else t("notetypes.update"),
-                        on_click=lambda: asyncio.ensure_future(on_sync(spec)),
-                        icon="sync",
-                    ).props("outline no-caps").classes("nt-btn nt-btn-ghost")
-                if busy:
-                    ui.spinner(size="1.2em").classes("text-slate-400")
-
-        # -- anatomy: fields + templates ------------------------------------
-        with ui.element("div").classes("nt-anatomy"):
-            with ui.element("div"):
-                ui.label(f"Fields · {len(spec.fields)}").classes("nt-zone-label")
-                with ui.element("div").classes("nt-field-grid"):
-                    for name in spec.fields[:4]:
-                        ui.label(name).classes("nt-field-chip")
-                    if len(spec.fields) > 4:
-                        ui.label(f"+{len(spec.fields) - 4} more").classes(
-                            "nt-field-more"
-                        )
-            with ui.element("div"):
-                ui.label(f"Cards · {len(spec.templates)}").classes("nt-zone-label")
-                with ui.element("div").classes("nt-tpl-list"):
-                    for template in spec.templates:
-                        with ui.element("div").classes("nt-tpl"):
-                            ui.label(template).classes("nt-tpl-name")
-                            ui.html("<b>front</b>&nbsp; question").classes(
-                                "nt-tpl-side nt-tpl-front"
-                            )
-                            ui.html("<b>back</b>&nbsp; answer").classes(
-                                "nt-tpl-side nt-tpl-back"
-                            )
-
-        # -- footer: drift / reassurance -------------------------------------
-        with ui.element("div").classes("nt-foot"):
-            if state == "missing":
-                ui.label(t("notetypes.not_in_anki")).classes("nt-foot-note")
-            elif state == "update":
-                if status.missing_fields:
-                    ui.label(
-                        f"{len(status.missing_fields)} field(s) will be added"
-                    ).classes("nt-diff nt-diff-bad")
-                if status.missing_templates:
-                    ui.label(
-                        f"{len(status.missing_templates)} card template(s) will be added"
-                    ).classes("nt-diff nt-diff-bad")
-                if status.css_differs:
-                    ui.label(t("notetypes.styling_changed")).classes(
-                        "nt-diff nt-diff-warn"
-                    )
-                    ui.label(t("notetypes.notes_preserved")).classes("nt-foot-note")
-            else:
-                if status.deck_exists:
-                    ui.label(t("notetypes.match")).classes("nt-foot-note")
-                else:
-                    ui.label(t("notetypes.deck_recreated")).classes("nt-foot-note")
+def _render_header(status: TypeStatus, busy: bool, on_sync) -> None:
+    """The type mark, name/deck summary, sync status stamp, and action button."""
+    spec, state, accent = status.spec, status.state, status.spec.accent
+    with ui.element("div").classes("nt-card-head"):
+        with ui.element("div").classes("nt-type-mark"):
+            with ui.element("div").classes("nt-icon").style(f"--nt-accent: {accent}"):
+                ui.icon(spec.icon).classes("text-[1.35rem]")
+            with ui.column().classes("gap-0"):
+                with ui.row().classes("items-baseline gap-0"):
+                    ui.label(spec.title).classes("nt-title")
+                    ui.label(spec.notetype_name).classes("nt-ntname")
                 ui.label(
-                    f"{spec.css_size_kb} styling · AINote::… deck ready"
-                    if status.deck_exists
-                    else f"{spec.css_size_kb} styling · deck missing"
-                ).classes("nt-foot-meta").style("margin-left:auto")
+                    f"{spec.deck_name} · {len(spec.fields)} fields · "
+                    f"{len(spec.templates)} {'card' if len(spec.templates) == 1 else 'cards'}"
+                ).classes("nt-meta")
+        with ui.element("div").classes("nt-head-actions"):
+            stamp_class = {
+                "synced": "nt-stamp-ok",
+                "update": "nt-stamp-warn",
+                "missing": "nt-stamp-bad",
+            }[state]
+            ui.label(_STATE_LABEL[state]).classes(f"nt-stamp {stamp_class}")
+            if state == "missing":
+                ui.button(
+                    t("notetypes.create"),
+                    on_click=lambda: asyncio.ensure_future(on_sync(spec)),
+                    icon="add_circle_outline",
+                ).props("unelevated no-caps").classes("nt-btn nt-btn-accent").style(
+                    f"--nt-accent: {accent}"
+                )
+            else:
+                ui.button(
+                    t("notetypes.sync_again")
+                    if state == "synced"
+                    else t("notetypes.update"),
+                    on_click=lambda: asyncio.ensure_future(on_sync(spec)),
+                    icon="sync",
+                ).props("outline no-caps").classes("nt-btn nt-btn-ghost")
+            if busy:
+                ui.spinner(size="1.2em").classes("text-slate-400")
+
+
+def _render_anatomy(spec: NoteTypeSpec) -> None:
+    """The fields grid and the front/back preview for each card template."""
+    with ui.element("div").classes("nt-anatomy"):
+        with ui.element("div"):
+            ui.label(f"Fields · {len(spec.fields)}").classes("nt-zone-label")
+            with ui.element("div").classes("nt-field-grid"):
+                for name in spec.fields[:4]:
+                    ui.label(name).classes("nt-field-chip")
+                if len(spec.fields) > 4:
+                    ui.label(f"+{len(spec.fields) - 4} more").classes("nt-field-more")
+        with ui.element("div"):
+            ui.label(f"Cards · {len(spec.templates)}").classes("nt-zone-label")
+            with ui.element("div").classes("nt-tpl-list"):
+                for template in spec.templates:
+                    with ui.element("div").classes("nt-tpl"):
+                        ui.label(template).classes("nt-tpl-name")
+                        ui.html("<b>front</b>&nbsp; question").classes(
+                            "nt-tpl-side nt-tpl-front"
+                        )
+                        ui.html("<b>back</b>&nbsp; answer").classes(
+                            "nt-tpl-side nt-tpl-back"
+                        )
+
+
+def _render_footer(status: TypeStatus) -> None:
+    """Drift/reassurance note: what's missing, what changed, or that it matches."""
+    spec, state = status.spec, status.state
+    with ui.element("div").classes("nt-foot"):
+        if state == "missing":
+            ui.label(t("notetypes.not_in_anki")).classes("nt-foot-note")
+        elif state == "update":
+            if status.missing_fields:
+                ui.label(
+                    f"{len(status.missing_fields)} field(s) will be added"
+                ).classes("nt-diff nt-diff-bad")
+            if status.missing_templates:
+                ui.label(
+                    f"{len(status.missing_templates)} card template(s) will be added"
+                ).classes("nt-diff nt-diff-bad")
+            if status.css_differs:
+                ui.label(t("notetypes.styling_changed")).classes("nt-diff nt-diff-warn")
+                ui.label(t("notetypes.notes_preserved")).classes("nt-foot-note")
+        else:
+            if status.deck_exists:
+                ui.label(t("notetypes.match")).classes("nt-foot-note")
+            else:
+                ui.label(t("notetypes.deck_recreated")).classes("nt-foot-note")
+            ui.label(
+                f"{spec.css_size_kb} styling · AINote::… deck ready"
+                if status.deck_exists
+                else f"{spec.css_size_kb} styling · deck missing"
+            ).classes("nt-foot-meta").style("margin-left:auto")
+
+
+def _render_panel(status: TypeStatus, busy: bool, on_sync) -> None:
+    """Render one note type as a physical flashcard showing its anatomy."""
+    with (
+        ui.element("div")
+        .classes("nt-card w-full")
+        .style(f"--nt-accent: {status.spec.accent}")
+    ):
+        _render_header(status, busy, on_sync)
+        _render_anatomy(status.spec)
+        _render_footer(status)
 
 
 def _render_summary(statuses: list[TypeStatus], busy_all: bool, on_rescan, on_sync_all):

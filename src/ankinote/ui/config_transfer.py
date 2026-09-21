@@ -171,13 +171,8 @@ def export_config(settings: Settings, passphrase: str) -> bytes:
     ).encode("utf-8")
 
 
-def import_config(blob: bytes, passphrase: str) -> ConfigBundle:
-    """Decrypt and parse a bundle file.
-
-    Raises:
-        ConfigImportError: If the file is not an ankinote bundle, the passphrase
-            is wrong, or the contents are tampered with or corrupt.
-    """
+def _parse_document(blob: bytes) -> dict[str, Any]:
+    """Decode the outer JSON envelope and check the format/version markers."""
     try:
         document = json.loads(blob)
     except (ValueError, UnicodeDecodeError) as exc:
@@ -188,7 +183,13 @@ def import_config(blob: bytes, passphrase: str) -> ConfigBundle:
         raise ConfigImportError(
             f"Unsupported configuration version {document.get('version')!r}."
         )
+    return document
 
+
+def _parse_kdf_header(
+    document: dict[str, Any],
+) -> tuple[dict[str, Any], bytes, int, int, int]:
+    """Validate the KDF parameters and rebuild the header used as AAD."""
     kdf = document.get("kdf")
     if not isinstance(kdf, dict) or kdf.get("name") != "scrypt":
         raise ConfigImportError("Malformed configuration file.")
@@ -198,15 +199,26 @@ def import_config(blob: bytes, passphrase: str) -> ConfigBundle:
         raise ConfigImportError("Malformed configuration file.") from exc
 
     salt = _b64d(kdf.get("salt"))
-    nonce = _b64d(document.get("nonce"))
-    ciphertext = _b64d(document.get("ciphertext"))
     header = {
         "format": document["format"],
         "version": document["version"],
         "kdf": {"name": "scrypt", "n": n, "r": r, "p": p, "salt": kdf.get("salt")},
         "cipher": document.get("cipher"),
     }
+    return header, salt, n, r, p
 
+
+def _decrypt_payload(
+    header: dict[str, Any],
+    salt: bytes,
+    n: int,
+    r: int,
+    p: int,
+    nonce: bytes,
+    ciphertext: bytes,
+    passphrase: str,
+) -> dict[str, Any]:
+    """Derive the key, decrypt, and parse the inner JSON payload."""
     try:
         key = _derive_key(passphrase, salt, n, r, p)
         plaintext = AESGCM(key).decrypt(nonce, ciphertext, _aad(header))
@@ -223,6 +235,21 @@ def import_config(blob: bytes, passphrase: str) -> ConfigBundle:
         raise ConfigImportError("Malformed configuration file.") from exc
     if not isinstance(payload, dict):
         raise ConfigImportError("Malformed configuration file.")
+    return payload
+
+
+def import_config(blob: bytes, passphrase: str) -> ConfigBundle:
+    """Decrypt and parse a bundle file.
+
+    Raises:
+        ConfigImportError: If the file is not an ankinote bundle, the passphrase
+            is wrong, or the contents are tampered with or corrupt.
+    """
+    document = _parse_document(blob)
+    header, salt, n, r, p = _parse_kdf_header(document)
+    nonce = _b64d(document.get("nonce"))
+    ciphertext = _b64d(document.get("ciphertext"))
+    payload = _decrypt_payload(header, salt, n, r, p, nonce, ciphertext, passphrase)
 
     return ConfigBundle(
         text_providers=_profiles_from_payload(payload.get("text_providers", {})),

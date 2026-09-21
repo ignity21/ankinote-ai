@@ -258,22 +258,26 @@ class RouteRack:
                 )
         dialog.open()
 
-    @ui.refreshable_method
-    def workspace(self) -> None:  # noqa: C901 - UI composition
-        if not self.routes:  # user removed the last route — fall back to a default
-            first = self.vendor_options[0]
-            self.routes.append(
-                RouteDraft(
-                    name=first,
-                    vendor=first,
-                    model=self.get_model_options(first)[0],
-                    base_url=self.vendor_templates[first]["api_base"],
-                )
+    def _ensure_default_route(self) -> None:
+        """Add a placeholder route if the user removed the last one."""
+        if self.routes:
+            return
+        first = self.vendor_options[0]
+        self.routes.append(
+            RouteDraft(
+                name=first,
+                vendor=first,
+                model=self.get_model_options(first)[0],
+                base_url=self.vendor_templates[first]["api_base"],
             )
+        )
+
+    def _normalize_selected(self) -> int:
         selected = max(0, min(self.state["selected"], len(self.routes) - 1))
         self.state["selected"] = selected
-        route = self.routes[selected]
+        return selected
 
+    def _render_pill_rack(self, selected: int) -> None:
         with ui.row().classes("route-rack"):
             for index, item in enumerate(self.routes):
                 classes = "route-pill"
@@ -299,133 +303,152 @@ class RouteRack:
             with add_btn:
                 ui.tooltip(t("settings.add_provider"))
 
-        with ui.column().classes("route-editor"):
-            name_input = ui.input(
-                label=t("settings.name"),
-                value=route.name,
-            ).classes("w-full")
-            name_input.on_value_change(
-                lambda e: setattr(route, "name", (e.value or "").strip())
-            )
-            base_input = ui.input(
-                label=t("settings.base_url"),
-                placeholder="https://your-endpoint.example.com/v1",
-                value=route.base_url,
-            ).classes("w-full")
-            base_input.on_value_change(
-                lambda e: setattr(route, "base_url", (e.value or "").strip())
-            )
+    def _render_model_row(
+        self, route: RouteDraft, vendor_info: dict | None
+    ) -> tuple[ui.select, ui.button | None]:
+        supports_fetch = vendor_info is None or vendor_info.get("supports_fetch", True)
+        if route.vendor == CUSTOM_VENDOR:
+            model_options = [route.model] if route.model else []
+        else:
+            model_options = self.get_model_options(route.vendor)
+        if route.model and route.model not in model_options:
+            model_options = [route.model, *model_options]
 
-            vendor_info = self.vendor_templates.get(route.vendor)
-            supports_fetch = vendor_info is None or vendor_info.get(
-                "supports_fetch", True
+        with ui.row().classes("route-model-row w-full items-center gap-2"):
+            model_select = ui.select(
+                label=t("settings.model"),
+                options=model_options,
+                value=route.model or (model_options[0] if model_options else None),
+                with_input=True,
+                new_value_mode="add-unique",
+            ).classes("flex-1 min-w-0")
+            model_select.on_value_change(
+                lambda e: setattr(route, "model", e.value or "")
             )
-
-            if route.vendor == CUSTOM_VENDOR:
-                model_options = [route.model] if route.model else []
-            else:
-                model_options = self.get_model_options(route.vendor)
-            if route.model and route.model not in model_options:
-                model_options = [route.model, *model_options]
-
-            with ui.row().classes("route-model-row w-full items-center gap-2"):
-                model_select = ui.select(
-                    label=t("settings.model"),
-                    options=model_options,
-                    value=route.model or (model_options[0] if model_options else None),
-                    with_input=True,
-                    new_value_mode="add-unique",
-                ).classes("flex-1 min-w-0")
-                model_select.on_value_change(
-                    lambda e: setattr(route, "model", e.value or "")
+            fetch_btn = None
+            if supports_fetch:
+                fetch_btn = (
+                    ui.button(icon="sync")
+                    .props("flat dense")
+                    .classes("route-fetch-btn")
                 )
-                fetch_btn = None
-                if supports_fetch:
-                    fetch_btn = (
-                        ui.button(icon="sync")
-                        .props("flat dense")
-                        .classes("route-fetch-btn")
-                    )
-                    with fetch_btn:
-                        ui.tooltip(t("settings.fetch_models"))
+                with fetch_btn:
+                    ui.tooltip(t("settings.fetch_models"))
+        return model_select, fetch_btn
 
-            key_input = ui.input(
-                label=vendor_info["env_key"] if vendor_info else t("settings.api_key"),
-                placeholder="sk-…",
-                password=True,
-                password_toggle_button=True,
-                value=route.api_key,
-            ).classes("w-full")
-            key_input.on_value_change(
-                lambda e: setattr(route, "api_key", e.value or "")
+    def _wire_fetch(
+        self,
+        fetch_btn: ui.button,
+        model_select: ui.select,
+        route: RouteDraft,
+        base_input: ui.input,
+        key_input: ui.input,
+    ) -> None:
+        async def _fetch(*, _route: RouteDraft = route) -> None:
+            key = (key_input.value or "").strip()
+            info = self.vendor_templates.get(_route.vendor)
+            provider = info["litellm_provider"] if info else "openai"
+            if not key and provider != "fal_ai":
+                ui.notify(t("settings.enter_key"), type="warning")
+                return
+            api_base = (base_input.value or "").strip()
+            model_api_base = info.get("model_api_base", api_base) if info else api_base
+            if not model_api_base:
+                ui.notify(t("settings.enter_base"), type="warning")
+                return
+            prefix = info["model_prefix"] if info else None
+
+            fetch_btn.props("loading")
+            fetch_btn.update()
+            try:
+                ids = await self.fetch_ids(
+                    litellm_provider=provider,
+                    api_base=model_api_base,
+                    api_key=key,
+                    model_prefix=prefix,
+                )
+            except (httpx.HTTPError, ValueError) as exc:
+                ui.notify(
+                    t("settings.fetch_failed", message=format_error(exc)),
+                    type="negative",
+                )
+                return
+            finally:
+                fetch_btn.props(remove="loading")
+                fetch_btn.update()
+
+            if not ids:
+                ui.notify(
+                    t("settings.no_models", noun=self.fetched_noun),
+                    type="warning",
+                )
+                return
+            current = model_select.value
+            options = ids if not current or current in ids else [current, *ids]
+            model_select.set_options(options, value=current or ids[0])
+            _route.model = model_select.value or ""
+            ui.notify(
+                t("settings.loaded", count=len(ids), noun=self.fetched_noun),
+                type="positive",
             )
 
-            if fetch_btn is not None:
+        fetch_btn.on("click", _fetch)
 
-                async def _fetch(*, _route: RouteDraft = route) -> None:
-                    key = (key_input.value or "").strip()
-                    info = self.vendor_templates.get(_route.vendor)
-                    provider = info["litellm_provider"] if info else "openai"
-                    if not key and provider != "fal_ai":
-                        ui.notify(t("settings.enter_key"), type="warning")
-                        return
-                    api_base = (base_input.value or "").strip()
-                    model_api_base = (
-                        info.get("model_api_base", api_base) if info else api_base
-                    )
-                    if not model_api_base:
-                        ui.notify(t("settings.enter_base"), type="warning")
-                        return
-                    prefix = info["model_prefix"] if info else None
+    def _render_route_editor(self, route: RouteDraft, selected: int) -> None:
+        name_input = ui.input(
+            label=t("settings.name"),
+            value=route.name,
+        ).classes("w-full")
+        name_input.on_value_change(
+            lambda e: setattr(route, "name", (e.value or "").strip())
+        )
+        base_input = ui.input(
+            label=t("settings.base_url"),
+            placeholder="https://your-endpoint.example.com/v1",
+            value=route.base_url,
+        ).classes("w-full")
+        base_input.on_value_change(
+            lambda e: setattr(route, "base_url", (e.value or "").strip())
+        )
 
-                    fetch_btn.props("loading")
-                    fetch_btn.update()
-                    try:
-                        ids = await self.fetch_ids(
-                            litellm_provider=provider,
-                            api_base=model_api_base,
-                            api_key=key,
-                            model_prefix=prefix,
-                        )
-                    except (httpx.HTTPError, ValueError) as exc:
-                        ui.notify(
-                            t("settings.fetch_failed", message=format_error(exc)),
-                            type="negative",
-                        )
-                        return
-                    finally:
-                        fetch_btn.props(remove="loading")
-                        fetch_btn.update()
+        vendor_info = self.vendor_templates.get(route.vendor)
+        model_select, fetch_btn = self._render_model_row(route, vendor_info)
 
-                    if not ids:
-                        ui.notify(
-                            t("settings.no_models", noun=self.fetched_noun),
-                            type="warning",
-                        )
-                        return
-                    current = model_select.value
-                    options = ids if not current or current in ids else [current, *ids]
-                    model_select.set_options(options, value=current or ids[0])
-                    _route.model = model_select.value or ""
-                    ui.notify(
-                        t("settings.loaded", count=len(ids), noun=self.fetched_noun),
-                        type="positive",
-                    )
+        key_input = ui.input(
+            label=vendor_info["env_key"] if vendor_info else t("settings.api_key"),
+            placeholder="sk-…",
+            password=True,
+            password_toggle_button=True,
+            value=route.api_key,
+        ).classes("w-full")
+        key_input.on_value_change(lambda e: setattr(route, "api_key", e.value or ""))
 
-                fetch_btn.on("click", _fetch)
+        if fetch_btn is not None:
+            self._wire_fetch(fetch_btn, model_select, route, base_input, key_input)
 
-            ui.label(_route_hint(route, self.vendor_templates)).classes(
-                "text-xs text-slate-500 pt-1"
-            )
-            with ui.row().classes("w-full justify-between items-center"):
-                ui.button(
-                    t("common.remove"),
-                    icon="delete",
-                    on_click=lambda: self.remove(selected),
-                ).props("flat dense no-caps color=negative")
-                ui.button(
-                    t("settings.save_provider"), icon="save", on_click=self.on_save
-                ).props("unelevated no-caps").classes("route-save-btn")
+        ui.label(_route_hint(route, self.vendor_templates)).classes(
+            "text-xs text-slate-500 pt-1"
+        )
+        with ui.row().classes("w-full justify-between items-center"):
+            ui.button(
+                t("common.remove"),
+                icon="delete",
+                on_click=lambda: self.remove(selected),
+            ).props("flat dense no-caps color=negative")
+            ui.button(
+                t("settings.save_provider"), icon="save", on_click=self.on_save
+            ).props("unelevated no-caps").classes("route-save-btn")
+
+    @ui.refreshable_method
+    def workspace(self) -> None:
+        self._ensure_default_route()
+        selected = self._normalize_selected()
+        route = self.routes[selected]
+
+        self._render_pill_rack(selected)
+
+        with ui.column().classes("route-editor"):
+            self._render_route_editor(route, selected)
 
 
 def settings_page() -> None:  # noqa: C901 - UI composition

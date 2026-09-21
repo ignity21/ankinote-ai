@@ -41,18 +41,11 @@ def present_sync(status: SyncSnapshot) -> SyncPresentation:
             "sync.credentials", "sync.credentials_help", "login", True
         )
     if status.state in (SyncState.SYNCING, SyncState.INITIALIZING):
-        return SyncPresentation(
-            "sync.initializing" if not status.initialized else "sync.syncing",
-            "sync.initializing_help" if not status.initialized else "sync.syncing_help",
-            "sync",
-        )
+        key = "sync.syncing" if status.initialized else "sync.initializing"
+        return SyncPresentation(key, f"{key}_help", "sync")
     if status.full_sync_required:
-        return SyncPresentation(
-            "sync.backup" if status.error == "backup" else "sync.choice",
-            "sync.backup_help" if status.error == "backup" else "sync.choice_help",
-            "compare_arrows",
-            True,
-        )
+        key = "sync.backup" if status.error == "backup" else "sync.choice"
+        return SyncPresentation(key, f"{key}_help", "compare_arrows", True)
     if status.state == SyncState.NOT_LOGGED_IN:
         return SyncPresentation(
             "sync.not_logged_in",
@@ -61,22 +54,28 @@ def present_sync(status: SyncSnapshot) -> SyncPresentation:
     if status.state == SyncState.IDLE:
         return SyncPresentation("sync.idle", "sync.idle_help", "cloud_done")
     if status.error == "media":
-        return SyncPresentation(
-            "sync.media",
+        detail = (
             "sync.retry_help"
             if status.state == SyncState.PENDING
-            else "sync.media_help",
-            "cloud_off",
-            True,
+            else "sync.media_help"
         )
+        return SyncPresentation("sync.media", detail, "cloud_off", True)
     if status.state == SyncState.PENDING:
-        return SyncPresentation(
-            "sync.pending",
-            "sync.retry_help" if status.initialized else "sync.first_retry_help",
-            "cloud_off",
-            True,
-        )
+        detail = "sync.retry_help" if status.initialized else "sync.first_retry_help"
+        return SyncPresentation("sync.pending", detail, "cloud_off", True)
     return SyncPresentation("sync.error", "sync.error_help", "error_outline", True)
+
+
+def _result_text(status: SyncSnapshot) -> str:
+    if status.result is None:
+        return ""
+    if status.result.collection_ok and status.result.media_ok:
+        outcome = "sync.result_ok"
+    elif status.result.collection_ok:
+        outcome = "sync.result_media"
+    else:
+        outcome = "sync.result_failed"
+    return t("sync.last_result", result=t(outcome))
 
 
 def save_allowed() -> bool:
@@ -398,6 +397,19 @@ class SyncPanel:
             self._snapshot is None or not self._snapshot.full_sync_required
         )
         self._snapshot, self._account = status, self.driver.account
+        active = self.busy or status.state in (
+            SyncState.SYNCING,
+            SyncState.INITIALIZING,
+        )
+        authenticated = (
+            status.state != SyncState.NOT_LOGGED_IN and status.error != "credentials"
+        )
+        self._update_status_text(status, active)
+        self._update_account_area(status, active, authenticated)
+        self._update_login_form(active)
+        self._update_choice(status, active, authenticated, new_choice)
+
+    def _update_status_text(self, status: SyncSnapshot, active: bool) -> None:
         view = present_sync(status)
         self.title.set_text(t(view.title))
         self.detail.set_text(t(view.detail))
@@ -413,33 +425,17 @@ class SyncPanel:
             if status.last_success
             else t("sync.never")
         )
-        self.result.set_text(
-            t(
-                "sync.last_result",
-                result=t(
-                    "sync.result_ok"
-                    if status.result.collection_ok and status.result.media_ok
-                    else "sync.result_media"
-                    if status.result.collection_ok
-                    else "sync.result_failed"
-                ),
-            )
-            if status.result
-            else ""
-        )
+        self.result.set_text(_result_text(status))
         self.blocked.set_visibility(self.service.write_blocked)
-        active = self.busy or status.state in (
-            SyncState.SYNCING,
-            SyncState.INITIALIZING,
-        )
         self.spinner.set_visibility(active)
         self.icon.set_visibility(not active)
         self.interval.set_text(
             t("sync.interval_summary", minutes=f"{status.interval_seconds / 60:g}")
         )
-        authenticated = (
-            status.state != SyncState.NOT_LOGGED_IN and status.error != "credentials"
-        )
+
+    def _update_account_area(
+        self, status: SyncSnapshot, active: bool, authenticated: bool
+    ) -> None:
         self.sync_button.set_enabled(
             not active and authenticated and not status.full_sync_required
         )
@@ -463,10 +459,20 @@ class SyncPanel:
         )
         self.logout_button.set_enabled(not active)
         self.logout_help.set_visibility(self.logout_button.visible)
+
+    def _update_login_form(self, active: bool) -> None:
         self.login_form.set_visibility(
             self.login_open and not self.driver.externally_configured
         )
         self.submit_login.set_enabled(not active)
+
+    def _update_choice(
+        self,
+        status: SyncSnapshot,
+        active: bool,
+        authenticated: bool,
+        new_choice: bool,
+    ) -> None:
         self.choice.set_visibility(status.full_sync_required and authenticated)
         if new_choice or self._directions != status.directions:
             self._directions = status.directions
