@@ -39,7 +39,7 @@ def format_error(exc: Exception) -> str:
     return collapsed if len(collapsed) <= 200 else collapsed[:200] + "…"
 
 
-def word_page() -> None:
+def word_page() -> None:  # noqa: C901 - UI composition
     """Render the word card generation page."""
 
     settings = load_settings()
@@ -119,7 +119,7 @@ def word_page() -> None:
             .classes("w-full")
         )
 
-        async def _generate():
+        async def _generate():  # noqa: C901 - UI workflow
             # Re-read from disk so a Settings change made after this page
             # loaded (e.g. in another tab) is picked up on every click.
             if not save_allowed():

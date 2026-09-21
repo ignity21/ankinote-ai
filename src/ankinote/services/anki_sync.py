@@ -299,7 +299,7 @@ class SyncService:
         self._attempt = asyncio.create_task(self._run(lambda: operation(direction)))
         return await asyncio.shield(self._attempt)
 
-    async def _run(
+    async def _run(  # noqa: C901 - existing sync state machine; refactor separately
         self, operation: Callable[[], Awaitable[SyncResult]] | None = None
     ) -> SyncSnapshot:
         async with self._lock:

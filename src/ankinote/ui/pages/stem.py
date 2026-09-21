@@ -81,7 +81,7 @@ def _edited_card(model: StemCard, fields: dict[str, str]) -> StemCard:
     return type(model).model_validate(values)
 
 
-def stem_page() -> None:
+def stem_page() -> None:  # noqa: C901 - UI composition
     """Render the STEM card generation page."""
 
     settings = load_settings()

@@ -259,7 +259,7 @@ class RouteRack:
         dialog.open()
 
     @ui.refreshable_method
-    def workspace(self) -> None:
+    def workspace(self) -> None:  # noqa: C901 - UI composition
         if not self.routes:  # user removed the last route — fall back to a default
             first = self.vendor_options[0]
             self.routes.append(
@@ -428,7 +428,7 @@ class RouteRack:
                 ).props("unelevated no-caps").classes("route-save-btn")
 
 
-def settings_page() -> None:
+def settings_page() -> None:  # noqa: C901 - UI composition
     """Render the settings page."""
 
     _settings_styles()

@@ -26,7 +26,7 @@ from ankinote.ui.sync import (
 )
 
 
-def phrase_page() -> None:
+def phrase_page() -> None:  # noqa: C901 - UI composition
     """Render the phrase and idiom card generation page."""
 
     settings = load_settings()
@@ -101,7 +101,7 @@ def phrase_page() -> None:
             .classes("w-full")
         )
 
-        async def _generate() -> None:
+        async def _generate() -> None:  # noqa: C901 - UI workflow
             if not save_allowed():
                 _notify(t("sync.write_blocked"), "warning")
                 return

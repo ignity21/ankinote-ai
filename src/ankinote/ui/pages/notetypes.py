@@ -502,7 +502,7 @@ def _inject_styles() -> None:
     )
 
 
-def _render_panel(status: TypeStatus, busy: bool, on_sync) -> None:
+def _render_panel(status: TypeStatus, busy: bool, on_sync) -> None:  # noqa: C901 - UI composition
     """Render one note type as a physical flashcard showing its anatomy."""
     spec = status.spec
     accent = spec.accent
@@ -645,7 +645,7 @@ def _render_summary(statuses: list[TypeStatus], busy_all: bool, on_rescan, on_sy
                 )
 
 
-def notetypes_page() -> None:
+def notetypes_page() -> None:  # noqa: C901 - UI composition
     """Render the Card Types management page."""
     _inject_styles()
     set_locale(load_settings().ui_language)

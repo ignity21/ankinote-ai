@@ -154,7 +154,7 @@ class AnkiSyncDriver:
             lambda col: self._classified(lambda: self._sync(col, direction))
         )
 
-    def _sync(
+    def _sync(  # noqa: C901 - existing sync state machine; refactor separately
         self, col: Collection, direction: Literal["upload", "download"] | None = None
     ) -> SyncResult:
         from anki.sync_pb2 import SyncAuth, SyncCollectionResponse
