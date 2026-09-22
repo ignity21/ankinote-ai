@@ -1,14 +1,32 @@
 # AnkiNote CLI — Usage Guide
 
 The CLI (`ankinote`) is a scriptable, batch-friendly way to generate
-AI-powered Anki flashcards from the terminal. Unlike the Web UI, it's
-configured with a `.env` file / environment variables rather than in-browser
-settings. If you don't need scripting or batch runs, the Web UI is the
-easier way to get started — see the main [README](../README.md).
+AI-powered Anki flashcards from the terminal. It shares its configuration —
+provider profiles, the Anki backend choice, and the TTS key — with the Web
+UI, stored in the same `settings.json`. If you don't need scripting or batch
+runs, the Web UI is the easier way to get started — see the main
+[README](../README.md).
 
 ## Configuration
 
-Create a `.env` file with your API keys. At minimum, you need one AI provider key and the Google TTS key:
+Run bare `ankinote` (no subcommand) in an interactive terminal to open a
+menu for managing text/image provider profiles, switching the Anki backend
+(AnkiConnect vs. the in-process collection), and setting the Google TTS key.
+Changes are saved immediately to `settings.json` and take effect for both
+the CLI and the Web UI — there's no separate "CLI config" to keep in sync.
+Running it non-interactively (e.g. piped, or in a script/CI job that forgot
+a subcommand) prints a short hint and exits instead of blocking on input.
+
+Once you have at least one profile configured, pass `--profile <name>`
+(and, for `word`/`stem`, `--image-profile <name>`) to any generation command
+to pick a specific provider by name instead of using the active one — see
+[Common options](#common-options) below. This is the recommended way to
+configure providers for scripted/agent use, since it's reproducible: point
+at a profile name rather than relying on whatever env vars happen to be set.
+
+Environment variables (`.env` or the shell) remain a supported fallback and
+still take priority when set — useful for one-off overrides or CI where you
+don't want a `settings.json` at all:
 
 ```env
 # At least one AI provider (for text and image generation)
@@ -28,14 +46,8 @@ ANKI_CONNECT_URL=http://localhost:8765
 The `ANKI_BACKEND`, `ANKI_COLLECTION_PATH`, and `ANKIWEB_USERNAME`/`ANKIWEB_PASSWORD`
 variables described in the [README's Web UI section](../README.md#what-still-needs-to-be-set-outside-the-browser)
 apply the same way to the CLI — the in-process backend and AnkiWeb sync
-aren't web-UI-only features.
-
-> **No `ankinote config`/`ankinote settings` command yet.** There's currently
-> no CLI subcommand to set API keys — only `.env` / environment variables, plus
-> `ankinote anki login|logout|status|sync` for AnkiWeb. A generic config
-> subcommand has been sketched in the past but never implemented; see
-> [`docs/plans/`](plans/) if you pick this up — worth adding a plan doc for
-> it before starting.
+aren't web-UI-only features, and the same values can be set via the `ankinote`
+menu instead of env vars.
 
 ## Commands
 
@@ -98,11 +110,25 @@ Batch commands also accept `--file` and `--rpm`. STEM commands accept
 `--llm`, and can additionally configure diagram generation with
 `--image-model` and `--image-size`.
 
-`--llm` and `--image-model` take any model id LiteLLM recognizes; the
-provider is inferred from the id and its key is read from the matching
-environment variable. Defaults are `gpt-5.6-luna` for text and
-`gpt-image-1.5` (quality `low`) for images — neither default matters much
-in practice since any provider works, including fal.ai. Examples:
+All four collections accept `--profile <name>` to pick a named text provider
+profile from `settings.json` (default: the active one); `word` and `stem`
+additionally accept `--image-profile <name>` for the image provider. An
+unknown name exits with an error listing the profiles that are actually
+configured:
+
+```bash
+ankinote word add serendipity --profile bogus
+# Error: Unknown provider profile 'bogus'. Available profiles: OpenAI
+```
+
+`--llm`/`--image-model` still take precedence over a profile's own model when
+both are given — the resolution order is `--llm`/`--image-model` override >
+profile's `model` > the built-in default below. `--llm` and `--image-model`
+take any model id LiteLLM recognizes; the provider is inferred from the id
+and, absent a matching profile, its key is read from the environment
+variable. Defaults are `gpt-5.6-luna` for text and `gpt-image-1.5` (quality
+`low`) for images — neither default matters much in practice since any
+provider works, including fal.ai. Examples:
 
 - `--llm`: `gpt-5.6-luna`, `deepseek/deepseek-v4-flash`, `gemini/gemini-2.5-pro`,
   `claude-sonnet-4-20250514`

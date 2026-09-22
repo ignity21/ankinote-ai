@@ -60,8 +60,10 @@ AnkiNote has two front ends that share the same card-generation engine:
   process-level settings (Anki backend, ports, secrets — see
   [below](#what-still-needs-to-be-set-outside-the-browser)) are still env
   vars. Start here if you're new.
-- **CLI** (`ankinote`) — scriptable, batch-friendly, configured via `.env` /
-  environment variables. See the [CLI usage guide](docs/cli-usage.md).
+- **CLI** (`ankinote`) — scriptable, batch-friendly. Bare `ankinote` opens an
+  interactive terminal menu for provider profiles, Anki backend, and the TTS
+  key, sharing the same settings the Web UI uses; `.env` / environment
+  variables still work as a fallback. See the [CLI usage guide](docs/cli-usage.md).
 
 ---
 
@@ -189,7 +191,10 @@ AnkiConnect host setup, and building locally. The published image bundles the
 ## ⌨️ CLI
 
 For scripting and batch runs, `ankinote` provides `word` / `phrase` /
-`sentence` / `stem` subcommands, configured via `.env` instead of the browser.
+`sentence` / `stem` subcommands. It reads provider profiles and the Anki
+backend from the same `settings.json` the Web UI writes — run bare `ankinote`
+for an interactive menu to manage them, or pass `--profile`/`--image-profile`
+to pick one by name; `.env` / environment variables still work as a fallback.
 See the [CLI usage guide](docs/cli-usage.md) for setup and the full command
 reference — most users should start with the Web UI above instead.
 

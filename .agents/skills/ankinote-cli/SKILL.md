@@ -39,6 +39,17 @@ Run `uv run ankinote --help` for the full list.
 
 All collections accept `--llm` to override the default model (currently `gpt-5.6-luna`; not load-bearing — any litellm-routable model works, including fal.ai's).
 `word` and `stem` accept `--image-model` (defaults to `gpt-image-1.5` at `low` quality, 512px) and `--image-size <pixels>`.
+
+All collections also accept `--profile <name>` (a named text provider profile
+from `settings.json`; defaults to the active one), and `word`/`stem`
+additionally accept `--image-profile <name>` for the image provider. Profiles
+are configured interactively — run bare `ankinote` (no subcommand) to open a
+terminal menu for managing provider profiles, the Anki backend, and the TTS
+key, sharing the same `settings.json` the Web UI uses. `--llm`/`--image-model`
+still override the profile's own model when given. For scripted/agent use,
+prefer `--profile <name>` over ad hoc env vars so runs are reproducible
+against a profile someone has already configured through the menu or Web UI.
+An unknown profile name exits with an error listing the available ones.
 Language-aware collections (`word`, `phrase`, `sentence` — not `stem`, which is language-agnostic) accept `--native` and `--target`:
 
 ```
