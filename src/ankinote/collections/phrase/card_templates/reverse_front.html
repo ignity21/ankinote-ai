@@ -1,6 +1,7 @@
 <section class="stage-card recall-card">
-  <div class="eyebrow">Recall{{#target_language}} · {{target_language}}{{/target_language}}</div>
+  <div class="eyebrow">Recall</div>
   {{#core_meaning}}<div class="meaning-prompt">{{core_meaning}}</div>{{/core_meaning}}
+  {{#target_language}}<div class="language-hint">Answer in {{target_language}}</div>{{/target_language}}
   {{#translations}}<div class="translation-prompt">{{translations}}</div>{{/translations}}
   {{#production_hint}}<div class="hint-box">{{production_hint}}</div>{{/production_hint}}
 </section>

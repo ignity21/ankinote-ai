@@ -1,6 +1,7 @@
 <section class="stage-card spelling-card">
-  <div class="eyebrow">Spelling{{#target_language}} · {{target_language}}{{/target_language}}</div>
+  <div class="eyebrow">Spelling</div>
   {{#core_meaning}}<div class="meaning-prompt">{{core_meaning}}</div>{{/core_meaning}}
+  {{#target_language}}<div class="language-hint">Answer in {{target_language}}</div>{{/target_language}}
   {{#headword_audio}}
   <div class="audio-hint">
     <span class="audio-hint-label">Pronunciation hint</span>
