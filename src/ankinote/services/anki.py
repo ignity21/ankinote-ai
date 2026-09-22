@@ -412,7 +412,7 @@ class ModelClient:
                     "cardTemplates": templates,
                 },
             )
-        except RuntimeError as exc_:
+        except AnkiConnectError as exc_:
             error_msg = str(exc_)
             if "already exists" in error_msg.lower():
                 raise ModelAlreadyExists(
@@ -430,9 +430,10 @@ class ModelClient:
             templates: List of template upserts with stable template names
 
         Raises:
-            RuntimeError: If AnkiConnect returns an error
+            ModelNotFound: If the model does not exist
         """
-        existing_templates = await self._client._invoke(
+        existing_templates = await self._invoke_or_model_not_found(
+            model_name,
             "modelTemplates",
             params={
                 "modelName": model_name,
@@ -494,9 +495,10 @@ class ModelClient:
             css: The new CSS styling
 
         Raises:
-            RuntimeError: If AnkiConnect returns an error
+            ModelNotFound: If the model does not exist
         """
-        await self._client._invoke(
+        await self._invoke_or_model_not_found(
+            model_name,
             "updateModelStyling",
             params={
                 "model": {
@@ -512,14 +514,31 @@ class ModelClient:
         Args:
             model_name: The name of the note model
             field_name: The field name to add
+
+        Raises:
+            ModelNotFound: If the model does not exist
         """
-        await self._client._invoke(
+        await self._invoke_or_model_not_found(
+            model_name,
             "modelFieldAdd",
             params={
                 "modelName": model_name,
                 "fieldName": field_name,
             },
         )
+
+    async def _invoke_or_model_not_found(
+        self, model_name: str, action: str, params: dict[str, Any]
+    ) -> Any:
+        """Invoke an action scoped to ``model_name``, raising ``ModelNotFound``
+        when AnkiConnect reports the model does not exist.
+        """
+        try:
+            return await self._client._invoke(action, params=params)
+        except AnkiConnectError as exc:
+            if "model was not found" in str(exc):
+                raise ModelNotFound(f"Model '{model_name}' not found") from exc
+            raise
 
     async def ensure_fields(self, model_name: str, field_names: list[str]) -> None:
         """Ensure note model contains all listed fields, adding missing ones."""

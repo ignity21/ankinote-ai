@@ -1,8 +1,10 @@
 """Reusable behavioral contract for an :class:`AnkiCollectionClient`.
 
 Subclass :class:`CollectionClientContract` and provide a ``client`` fixture that
-yields a ready-to-use client. Today only the direct (local collection) backend
-runs it; an AnkiConnect fixture could be added later without touching the cases.
+yields a ready-to-use client. Run by both backends: the direct (local
+collection) backend in ``test_anki_direct.py`` and the AnkiConnect backend
+(against a real, ``anki``-library-backed fake server) in
+``test_anki_connect_integration.py``.
 """
 
 from __future__ import annotations
