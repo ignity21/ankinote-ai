@@ -2,7 +2,6 @@
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
 from typing import Literal
 
 from nicegui import ui
@@ -18,64 +17,18 @@ from ankinote.services.anki_sync import (
 )
 from ankinote.services.anki_sync_driver import AnkiSyncDriver
 from ankinote.ui.i18n import t
+from ankinote.ui.sync_presentation import SyncPresentation, present_sync, result_text
 
-
-@dataclass(frozen=True, slots=True)
-class SyncPresentation:
-    """Semantic text keys, separate from styling and backend enums."""
-
-    title: str
-    detail: str
-    icon: str = "cloud_queue"
-    attention: bool = False
-
-
-def present_sync(status: SyncSnapshot) -> SyncPresentation:
-    """Describe current outcomes without implying that a save failed."""
-    if status.error == "state_store":
-        return SyncPresentation(
-            "sync.state_store", "sync.state_store_help", "error_outline", True
-        )
-    if status.error == "credentials":
-        return SyncPresentation(
-            "sync.credentials", "sync.credentials_help", "login", True
-        )
-    if status.state in (SyncState.SYNCING, SyncState.INITIALIZING):
-        key = "sync.syncing" if status.initialized else "sync.initializing"
-        return SyncPresentation(key, f"{key}_help", "sync")
-    if status.full_sync_required:
-        key = "sync.backup" if status.error == "backup" else "sync.choice"
-        return SyncPresentation(key, f"{key}_help", "compare_arrows", True)
-    if status.state == SyncState.NOT_LOGGED_IN:
-        return SyncPresentation(
-            "sync.not_logged_in",
-            "sync.offline_help" if status.initialized else "sync.first_help",
-        )
-    if status.state == SyncState.IDLE:
-        return SyncPresentation("sync.idle", "sync.idle_help", "cloud_done")
-    if status.error == "media":
-        detail = (
-            "sync.retry_help"
-            if status.state == SyncState.PENDING
-            else "sync.media_help"
-        )
-        return SyncPresentation("sync.media", detail, "cloud_off", True)
-    if status.state == SyncState.PENDING:
-        detail = "sync.retry_help" if status.initialized else "sync.first_retry_help"
-        return SyncPresentation("sync.pending", detail, "cloud_off", True)
-    return SyncPresentation("sync.error", "sync.error_help", "error_outline", True)
-
-
-def _result_text(status: SyncSnapshot) -> str:
-    if status.result is None:
-        return ""
-    if status.result.collection_ok and status.result.media_ok:
-        outcome = "sync.result_ok"
-    elif status.result.collection_ok:
-        outcome = "sync.result_media"
-    else:
-        outcome = "sync.result_failed"
-    return t("sync.last_result", result=t(outcome))
+__all__ = [
+    "SyncPanel",
+    "SyncPresentation",
+    "present_sync",
+    "retain_generated_save",
+    "save_allowed",
+    "saved_message",
+    "sync_feedback",
+    "sync_settings",
+]
 
 
 def save_allowed() -> bool:
@@ -425,7 +378,7 @@ class SyncPanel:
             if status.last_success
             else t("sync.never")
         )
-        self.result.set_text(_result_text(status))
+        self.result.set_text(result_text(status))
         self.blocked.set_visibility(self.service.write_blocked)
         self.spinner.set_visibility(active)
         self.icon.set_visibility(not active)

@@ -205,5 +205,8 @@ def test_sync_strings_exist_in_both_locales():
         assert set(re.findall(r"\{([^}]+)\}", en[key])) == set(
             re.findall(r"\{([^}]+)\}", zh[key])
         )
-    for key in re.findall(r'["\'](sync\.[a-z_]+)["\']', (root / "sync.py").read_text()):
+    source = (root / "sync.py").read_text() + (
+        root / "sync_presentation.py"
+    ).read_text()
+    for key in re.findall(r'["\'](sync\.[a-z_]+)["\']', source):
         assert key in keys
