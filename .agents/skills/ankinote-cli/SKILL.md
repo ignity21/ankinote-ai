@@ -20,6 +20,7 @@ Generate AI-powered Anki cards from the terminal via litellm (OpenAI, DeepSeek, 
 ```
 ankinote [--version] <collection> <command> [args...]
 ankinote anki <login|logout|status|sync>   # AnkiWeb sync — see references/anki-sync.md
+ankinote profiles list [--json]            # list configured provider profiles
 ```
 
 Four card collections: `word`, `phrase`, `sentence`, `stem`. Each has three subcommands: `add`, `batch`, `init`.
@@ -50,6 +51,15 @@ still override the profile's own model when given. For scripted/agent use,
 prefer `--profile <name>` over ad hoc env vars so runs are reproducible
 against a profile someone has already configured through the menu or Web UI.
 An unknown profile name exits with an error listing the available ones.
+
+Before picking a `--profile`/`--image-profile` name, discover what's actually
+configured with `ankinote profiles list --json` — a read-only command that
+prints each text/image profile's name, vendor, model, and which one is
+active, without ever printing `api_key`:
+
+```bash
+ankinote profiles list --json
+```
 Language-aware collections (`word`, `phrase`, `sentence` — not `stem`, which is language-agnostic) accept `--native` and `--target`:
 
 ```

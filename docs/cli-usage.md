@@ -121,6 +121,16 @@ ankinote word add serendipity --profile bogus
 # Error: Unknown provider profile 'bogus'. Available profiles: OpenAI
 ```
 
+To see what's actually configured before picking a name, run:
+
+```bash
+ankinote profiles list           # human-readable table
+ankinote profiles list --json    # machine-readable, for scripts/agents
+```
+
+This lists every text and image profile's name, vendor, and model, and marks
+which one is active — it's read-only and never prints `api_key`.
+
 `--llm`/`--image-model` still take precedence over a profile's own model when
 both are given — the resolution order is `--llm`/`--image-model` override >
 profile's `model` > the built-in default below. `--llm` and `--image-model`
@@ -155,4 +165,5 @@ ankinote phrase --help
 ankinote sentence --help
 ankinote stem --help
 ankinote word batch --help
+ankinote profiles list --help
 ```
