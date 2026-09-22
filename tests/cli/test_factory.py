@@ -3,6 +3,7 @@
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
+import click
 import pytest
 from pytest_mock import MockerFixture
 
@@ -15,15 +16,16 @@ from ankinote.cli.factory import (
     build_sentence_collection,
     build_stem_collection,
     build_word_collection,
+    resolve_profile,
     resolve_thinking,
 )
 from ankinote.consts import Language
 from ankinote.services.ai import (
-    DEFAULT_AI_SERVICE_CONFIG,
     DISABLE_REASONING,
     LiteLLMImageService,
 )
 from ankinote.services.anki import NoteModel
+from ankinote.settings import ProviderProfile, Settings, save_settings
 
 
 class FakeAsyncContextManager:
@@ -128,19 +130,33 @@ class TestCollectionBuilders:
         assert image_service._image_size == 256
 
     def test_build_word_collection_uses_default_ai_config(self):
+        """No overrides and no settings.json -> falls back to the default profiles.
+
+        The active text/image provider profiles created by a fresh
+        ``Settings()`` (see ``_isolate_settings_file``) carry their own
+        model, which now wins over ``DEFAULT_AI_SERVICE_CONFIG`` — see
+        ``resolve_profile``/``_resolve_text_model``.
+        """
         client = FakeCollectionClient()
         options = WordCollectionOptions(
             native_language=Language.CHINESE_S,
             target_language=Language.ENGLISH,
         )
+        settings = Settings()
 
         collection = build_word_collection(client, options)
 
-        assert collection._generator._text_model == DEFAULT_AI_SERVICE_CONFIG.text_model
+        assert (
+            collection._generator._text_model
+            == settings.text_providers[settings.active_text_provider].model
+        )
         image_service = collection._generator._image_service
         assert isinstance(image_service, LiteLLMImageService)
-        assert image_service._model == DEFAULT_AI_SERVICE_CONFIG.image_model
-        assert image_service._image_size == DEFAULT_AI_SERVICE_CONFIG.image_size
+        assert (
+            image_service._model
+            == settings.image_providers[settings.active_image_provider].model
+        )
+        assert image_service._image_size == settings.image_size
 
     def test_build_phrase_collection(self):
         client = FakeCollectionClient()
@@ -219,6 +235,85 @@ class TestReasoningEffortPlumbing:
             FakeCollectionClient(), StemCollectionOptions()
         )
         assert collection._reasoning_effort is None
+
+
+class TestResolveProfile:
+    """``--profile``/``--image-profile`` name lookup."""
+
+    def test_falls_back_to_active_when_no_name_given(self):
+        providers = {"a": ProviderProfile(model="model-a")}
+        assert resolve_profile(None, providers, "a") is providers["a"]
+
+    def test_named_profile_overrides_active(self):
+        providers = {
+            "a": ProviderProfile(model="model-a"),
+            "b": ProviderProfile(model="model-b"),
+        }
+        assert resolve_profile("b", providers, "a") is providers["b"]
+
+    def test_unknown_name_lists_available_profiles(self):
+        providers = {"a": ProviderProfile(model="model-a")}
+        with pytest.raises(click.UsageError, match="bogus.*Available profiles: a"):
+            resolve_profile("bogus", providers, "a")
+
+
+class TestProfileSelection:
+    """A named ``--profile``/``--image-profile`` is read from settings.json."""
+
+    def test_named_text_profile_wins_over_active(self):
+        settings = Settings(
+            text_providers={
+                "OpenAI": ProviderProfile(vendor="OpenAI", model="gpt-4o"),
+                "second": ProviderProfile(
+                    vendor="Custom / Other",
+                    model="my-model",
+                    base_url="https://example.test/v1",
+                    api_key="secret",
+                ),
+            },
+            active_text_provider="OpenAI",
+        )
+        save_settings(settings)
+
+        collection = build_phrase_collection(
+            FakeCollectionClient(),
+            LanguageCollectionOptions(
+                native_language=Language.CHINESE_S,
+                target_language=Language.ENGLISH,
+                profile="second",
+            ),
+        )
+
+        assert collection._generator._text_model == "my-model"
+
+    def test_llm_override_wins_over_profile_model(self):
+        settings = Settings(
+            text_providers={
+                "OpenAI": ProviderProfile(vendor="OpenAI", model="gpt-4o"),
+            },
+            active_text_provider="OpenAI",
+        )
+        save_settings(settings)
+
+        collection = build_phrase_collection(
+            FakeCollectionClient(),
+            LanguageCollectionOptions(
+                native_language=Language.CHINESE_S,
+                target_language=Language.ENGLISH,
+                llm_model="explicit-model",
+            ),
+        )
+
+        assert collection._generator._text_model == "explicit-model"
+
+    def test_unknown_profile_raises_usage_error(self):
+        collection_options = LanguageCollectionOptions(
+            native_language=Language.CHINESE_S,
+            target_language=Language.ENGLISH,
+            profile="does-not-exist",
+        )
+        with pytest.raises(click.UsageError, match="does-not-exist"):
+            build_phrase_collection(FakeCollectionClient(), collection_options)
 
 
 class TestAnkiClientScope:

@@ -47,6 +47,16 @@ COLLECTION_OPTIONS = [
         type=int,
     ),
     click.option(
+        "--profile",
+        default=None,
+        help="Named text provider profile (default: the active one in settings).",
+    ),
+    click.option(
+        "--image-profile",
+        default=None,
+        help="Named image provider profile (default: the active one in settings).",
+    ),
+    click.option(
         "--thinking",
         default=None,
         type=click.Choice(THINKING_CHOICES),
@@ -70,6 +80,8 @@ def build_options(
     llm: str | None,
     image_model: str | None,
     image_size: int | None,
+    profile: str | None = None,
+    image_profile: str | None = None,
     thinking: str | None = None,
 ) -> WordCollectionOptions:
     """Convert CLI parameters to typed collection options."""
@@ -80,6 +92,8 @@ def build_options(
         image_model=image_model,
         image_size=image_size,
         reasoning_effort=resolve_thinking(thinking, unset=DISABLE_REASONING),
+        profile=profile,
+        image_profile=image_profile,
     )
 
 
@@ -96,11 +110,22 @@ def word():
 
 @word.command("init")
 @collection_options
-def init(native, target, llm, image_model, image_size, thinking):
+def init(
+    native, target, llm, image_model, image_size, profile, image_profile, thinking
+):
     """Create note type and deck in Anki."""
 
     async def _run():
-        options = build_options(native, target, llm, image_model, image_size, thinking)
+        options = build_options(
+            native,
+            target,
+            llm,
+            image_model,
+            image_size,
+            profile,
+            image_profile,
+            thinking,
+        )
         async with (
             anki_client_scope() as client,
             build_word_collection(client, options),
@@ -117,11 +142,22 @@ def init(native, target, llm, image_model, image_size, thinking):
 @word.command("add")
 @click.argument("word")
 @collection_options
-def add(word, native, target, llm, image_model, image_size, thinking):
+def add(
+    word, native, target, llm, image_model, image_size, profile, image_profile, thinking
+):
     """Generate and push a single word card."""
 
     async def _run():
-        options = build_options(native, target, llm, image_model, image_size, thinking)
+        options = build_options(
+            native,
+            target,
+            llm,
+            image_model,
+            image_size,
+            profile,
+            image_profile,
+            thinking,
+        )
         async with (
             anki_client_scope() as client,
             build_word_collection(client, options) as collection,
@@ -147,7 +183,19 @@ def add(word, native, target, llm, image_model, image_size, thinking):
     help="Max requests per minute (match your AI provider's limit).",
 )
 @collection_options
-def batch(words, file, native, target, llm, image_model, image_size, rpm, thinking):
+def batch(
+    words,
+    file,
+    native,
+    target,
+    llm,
+    image_model,
+    image_size,
+    rpm,
+    profile,
+    image_profile,
+    thinking,
+):
     """Generate and push multiple word cards.
 
     Words can be passed as arguments, read from a file (whitespace-separated),
@@ -172,7 +220,16 @@ def batch(words, file, native, target, llm, image_model, image_size, rpm, thinki
 
         sem = asyncio.Semaphore(MAX_CONCURRENCY)
         limiter = StrictLimiter(rpm / 60)
-        options = build_options(native, target, llm, image_model, image_size, thinking)
+        options = build_options(
+            native,
+            target,
+            llm,
+            image_model,
+            image_size,
+            profile,
+            image_profile,
+            thinking,
+        )
 
         async def _process(w: str):
             nonlocal success

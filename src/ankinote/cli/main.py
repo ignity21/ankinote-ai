@@ -4,6 +4,7 @@ import click
 from loguru import logger
 
 from ankinote import __version__
+from ankinote.settings import apply_env, load_settings
 
 from .anki import anki
 from .phrase import phrase
@@ -17,13 +18,21 @@ _VERSION_BANNER = f"""╔══════════════════�
 ╚══════════════════════════════════════════════╝"""
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.version_option(
     prog_name="ankinote",
     message=_VERSION_BANNER,
 )
-def cli():
+@click.pass_context
+def cli(ctx: click.Context):
     """AI-powered Anki card generator — vocabulary, phrases, sentences, STEM concepts."""
+    # Push the GUI's persisted settings.json (Anki backend, TTS key) into the
+    # process env before any subcommand runs, so a backend switch made in the
+    # Web UI or the TUI is visible here too — previously only the GUI process
+    # ever saw it.
+    apply_env(load_settings())
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
 
 
 cli.add_command(word)

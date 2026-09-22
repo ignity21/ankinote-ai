@@ -37,6 +37,11 @@ COLLECTION_OPTIONS = [
         show_default=DEFAULT_AI_SERVICE_CONFIG.text_model,
     ),
     click.option(
+        "--profile",
+        default=None,
+        help="Named text provider profile (default: the active one in settings).",
+    ),
+    click.option(
         "--thinking",
         default=None,
         type=click.Choice(THINKING_CHOICES),
@@ -58,6 +63,7 @@ def build_options(
     native: str,
     target: str,
     llm: str | None,
+    profile: str | None = None,
     thinking: str | None = None,
 ) -> LanguageCollectionOptions:
     """Convert CLI parameters to typed collection options."""
@@ -66,6 +72,7 @@ def build_options(
         target_language=Language(target),
         llm_model=llm,
         reasoning_effort=resolve_thinking(thinking, unset=DISABLE_REASONING),
+        profile=profile,
     )
 
 
@@ -82,11 +89,11 @@ def phrase():
 
 @phrase.command("init")
 @collection_options
-def init(native, target, llm, thinking):
+def init(native, target, llm, profile, thinking):
     """Create phrase note type and deck in Anki."""
 
     async def _run():
-        options = build_options(native, target, llm, thinking)
+        options = build_options(native, target, llm, profile, thinking)
         async with (
             anki_client_scope() as client,
             build_phrase_collection(client, options),
@@ -103,11 +110,11 @@ def init(native, target, llm, thinking):
 @phrase.command("add")
 @click.argument("phrase")
 @collection_options
-def add(phrase, native, target, llm, thinking):
+def add(phrase, native, target, llm, profile, thinking):
     """Generate and push a single phrase card."""
 
     async def _run():
-        options = build_options(native, target, llm, thinking)
+        options = build_options(native, target, llm, profile, thinking)
         async with (
             anki_client_scope() as client,
             build_phrase_collection(client, options) as collection,
@@ -133,7 +140,7 @@ def add(phrase, native, target, llm, thinking):
     help="Max requests per minute (match your AI provider's limit).",
 )
 @collection_options
-def batch(phrases, file, native, target, llm, rpm, thinking):
+def batch(phrases, file, native, target, llm, rpm, profile, thinking):
     """Generate and push multiple phrase cards.
 
     \b
@@ -166,7 +173,7 @@ def batch(phrases, file, native, target, llm, rpm, thinking):
 
         sem = asyncio.Semaphore(MAX_CONCURRENCY)
         limiter = StrictLimiter(rpm / 60)
-        options = build_options(native, target, llm, thinking)
+        options = build_options(native, target, llm, profile, thinking)
 
         async def _process(p: str):
             nonlocal success

@@ -44,6 +44,16 @@ def collection_options(f):
         help="Image size in pixels (square)",
     )(f)
     f = click.option(
+        "--profile",
+        default=None,
+        help="Named text provider profile (default: the active one in settings).",
+    )(f)
+    f = click.option(
+        "--image-profile",
+        default=None,
+        help="Named image provider profile (default: the active one in settings).",
+    )(f)
+    f = click.option(
         "--thinking",
         default=None,
         type=click.Choice(THINKING_CHOICES),
@@ -66,6 +76,8 @@ def build_options(
     llm: str | None,
     image_model: str | None,
     image_size: int | None,
+    profile: str | None = None,
+    image_profile: str | None = None,
     thinking: str | None = None,
     card_type: str = "auto",
 ) -> StemCollectionOptions:
@@ -76,6 +88,8 @@ def build_options(
         image_size=image_size,
         reasoning_effort=resolve_thinking(thinking, unset="high"),
         card_type=None if card_type == "auto" else CardType(card_type),
+        profile=profile,
+        image_profile=image_profile,
     )
 
 
@@ -86,11 +100,13 @@ def stem():
 
 @stem.command("init")
 @collection_options
-def init(llm, image_model, image_size, thinking, card_type):
+def init(llm, image_model, image_size, profile, image_profile, thinking, card_type):
     """Create note type and deck in Anki."""
 
     async def _run():
-        options = build_options(llm, image_model, image_size, thinking, card_type)
+        options = build_options(
+            llm, image_model, image_size, profile, image_profile, thinking, card_type
+        )
         async with (
             anki_client_scope() as client,
             build_stem_collection(client, options) as collection,
@@ -115,7 +131,17 @@ def init(llm, image_model, image_size, thinking, card_type):
     ),
 )
 @collection_options
-def add(topic, image_path, llm, image_model, image_size, thinking, card_type):
+def add(
+    topic,
+    image_path,
+    llm,
+    image_model,
+    image_size,
+    profile,
+    image_profile,
+    thinking,
+    card_type,
+):
     """Generate and push a single STEM card.
 
     TOPIC is any question or concept (e.g. "What is a derivative?",
@@ -127,7 +153,9 @@ def add(topic, image_path, llm, image_model, image_size, thinking, card_type):
     ) or "image/png"
 
     async def _run():
-        options = build_options(llm, image_model, image_size, thinking, card_type)
+        options = build_options(
+            llm, image_model, image_size, profile, image_profile, thinking, card_type
+        )
         async with (
             anki_client_scope() as client,
             build_stem_collection(client, options) as collection,
@@ -166,7 +194,18 @@ def add(topic, image_path, llm, image_model, image_size, thinking, card_type):
     type=int,
     help="Requests per minute limit",
 )
-def batch(topics, file, llm, image_model, image_size, rpm, thinking, card_type):
+def batch(
+    topics,
+    file,
+    llm,
+    image_model,
+    image_size,
+    rpm,
+    profile,
+    image_profile,
+    thinking,
+    card_type,
+):
     """Generate and push multiple STEM cards.
 
     Topics can be passed as arguments, read from a file (one per line),
@@ -195,7 +234,9 @@ def batch(topics, file, llm, image_model, image_size, rpm, thinking, card_type):
 
     async def _run():
         nonlocal success
-        options = build_options(llm, image_model, image_size, thinking, card_type)
+        options = build_options(
+            llm, image_model, image_size, profile, image_profile, thinking, card_type
+        )
 
         async with (
             anki_client_scope() as client,
