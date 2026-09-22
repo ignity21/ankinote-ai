@@ -88,7 +88,7 @@ _release-guard:
 release: _release-guard release-check
 	@set -e; \
 	uvx hatch version "$(part)"; \
-	version="$$(uvx hatch version)"; \
+	version="$$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/ankinote/__init__.py)"; \
 	tag="v$$version"; \
 	echo "Releasing $$tag"; \
 	git add src/ankinote/__init__.py; \
