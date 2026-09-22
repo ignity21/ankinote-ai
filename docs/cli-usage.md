@@ -29,8 +29,8 @@ still take priority when set — useful for one-off overrides or CI where you
 don't want a `settings.json` at all:
 
 ```env
-# At least one AI provider (for text and image generation)
-DEEPSEEK_API_KEY=your_deepseek_key
+# Uncomment whichever provider(s) you want litellm to fall back to
+# DEEPSEEK_API_KEY=your_deepseek_key
 # GEMINI_API_KEY=your_gemini_key
 # OPENAI_API_KEY=sk-...
 # ANTHROPIC_API_KEY=sk-ant-...

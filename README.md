@@ -194,8 +194,9 @@ For scripting and batch runs, `ankinote` provides `word` / `phrase` /
 `sentence` / `stem` subcommands. It reads provider profiles and the Anki
 backend from the same `settings.json` the Web UI writes — run bare `ankinote`
 for an interactive menu to manage them, or pass `--profile`/`--image-profile`
-to pick one by name; `.env` / environment variables still work as a fallback.
-See the [CLI usage guide](docs/cli-usage.md) for setup and the full command
+to pick one by name (`ankinote profiles list --json` shows what's
+configured); `.env` / environment variables still work as a fallback. See
+the [CLI usage guide](docs/cli-usage.md) for setup and the full command
 reference — most users should start with the Web UI above instead.
 
 ## 📦 Tech Stack

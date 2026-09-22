@@ -10,7 +10,7 @@ Generate AI-powered Anki cards from the terminal via litellm (OpenAI, DeepSeek, 
 ## Prerequisites
 
 - Anki running with [AnkiConnect](https://ankiweb.net/shared/info/2055492159) installed (default backend), or the in-process collection backend configured — see [references/anki-sync.md](references/anki-sync.md) if not using AnkiConnect.
-- One provider API key set (e.g. `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`, or `FAL_AI_API_KEY`); litellm picks whichever matches the model.
+- At least one text provider profile configured (run bare `ankinote` for the interactive menu, or use the Web UI's Settings page) — check with `ankinote profiles list`. A provider API key set directly in the environment (e.g. `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`, or `FAL_AI_API_KEY`) also works as a fallback litellm reads automatically.
 - Project installed: `uv sync`
 
 ## Commands
