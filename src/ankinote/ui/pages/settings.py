@@ -16,7 +16,7 @@ from ankinote.services.anki_factory import (
     switch_backend,
 )
 from ankinote.services.collection_runtime import CollectionRuntimeError
-from ankinote.ui.config import (
+from ankinote.settings import (
     CUSTOM_VENDOR,
     DEFAULT_IMAGE_PROFILE_NAME,
     DEFAULT_TEXT_PROFILE_NAME,

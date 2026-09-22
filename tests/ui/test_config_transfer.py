@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from ankinote.ui.config import DefaultsConfig, ProviderProfile, Settings
+from ankinote.settings import DefaultsConfig, ProviderProfile, Settings
 from ankinote.ui.config_transfer import (
     ConfigImportError,
     ConfigTransferError,

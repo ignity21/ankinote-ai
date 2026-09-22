@@ -7,7 +7,7 @@ from nicegui import ui
 from nicegui.testing.user_simulation import user_simulation
 
 from ankinote.collections.stem.models import CARD_ADAPTER, CardType
-from ankinote.ui.config import Settings
+from ankinote.settings import Settings
 from ankinote.ui.pages import stem
 
 

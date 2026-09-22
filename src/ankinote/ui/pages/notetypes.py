@@ -45,7 +45,7 @@ from ankinote.consts import Language
 from ankinote.services.ai import LiteLLMTextService
 from ankinote.services.anki import AnkiCollectionClient
 from ankinote.services.anki_factory import create_anki_client
-from ankinote.ui.config import load_settings
+from ankinote.settings import load_settings
 from ankinote.ui.i18n import set_locale, t
 from ankinote.ui.pages.word import format_error
 from ankinote.ui.sync import save_allowed, sync_feedback

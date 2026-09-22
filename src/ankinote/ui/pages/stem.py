@@ -9,13 +9,11 @@ from nicegui import events, ui
 from ankinote.app import Application
 from ankinote.collections.stem import CardType, StemCard, StemCollection
 from ankinote.collections.stem.models import NOTE_FIELDS, FormulaModel
-from ankinote.services.ai import (
-    LiteLLMTextService,
-    resolve_thinking,
-)
+from ankinote.services.ai import resolve_thinking
 from ankinote.services.anki import AnkiCollectionClient
 from ankinote.services.anki_factory import create_anki_client, get_shared_runtime
-from ankinote.ui.config import (
+from ankinote.services.provider_factory import build_image_service, build_text_service
+from ankinote.settings import (
     CUSTOM_VENDOR,
     ProviderProfile,
     Settings,
@@ -24,7 +22,6 @@ from ankinote.ui.config import (
     load_settings,
 )
 from ankinote.ui.i18n import set_locale, t
-from ankinote.ui.image_service import build_image_service
 from ankinote.ui.pages.word import format_error
 from ankinote.ui.sync import (
     retain_generated_save,
@@ -40,18 +37,6 @@ _THINKING_OPTIONS = {
     "medium": "Medium",
     "high": "High",
 }
-
-
-def _build_text_service(settings: Settings) -> LiteLLMTextService:
-    """Assemble the text service from the active text provider profile."""
-    profile = settings.text_providers.get(settings.active_text_provider) or (
-        ProviderProfile()
-    )
-    return LiteLLMTextService(
-        api_base=profile.base_url or None,
-        api_key=profile.api_key or None,
-        force_openai_route=profile.vendor == CUSTOM_VENDOR,
-    )
 
 
 def _normalize_field(name: str, value: str) -> list[str] | str | None:
@@ -236,7 +221,7 @@ def stem_page() -> None:  # noqa: C901 - UI composition
                 anki_client,
                 card_type=card_type,
                 text_model=text_profile.model,
-                text_service=_build_text_service(settings),
+                text_service=build_text_service(text_profile),
                 image_service=image_service,
                 reasoning_effort=reasoning_effort,
             )

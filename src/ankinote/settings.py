@@ -1,4 +1,4 @@
-"""Configuration persistence for the GUI."""
+"""Configuration persistence shared by the CLI and GUI."""
 
 import functools
 import json

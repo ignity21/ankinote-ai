@@ -6,7 +6,7 @@ import os
 import httpx
 import pytest
 
-from ankinote.ui.config import (
+from ankinote.settings import (
     CUSTOM_VENDOR,
     IMAGE_PROVIDERS,
     ProviderProfile,

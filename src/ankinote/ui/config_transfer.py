@@ -33,7 +33,7 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
-from ankinote.ui.config import ProviderProfile, Settings
+from ankinote.settings import ProviderProfile, Settings
 
 BUNDLE_FORMAT = "ankinote-config"
 BUNDLE_VERSION = 1

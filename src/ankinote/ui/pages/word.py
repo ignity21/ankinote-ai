@@ -9,16 +9,14 @@ from nicegui import ui
 from ankinote.app import Application
 from ankinote.collections.word import WordCollection
 from ankinote.consts import TARGET_LANGUAGES, Language
-from ankinote.services.ai import LiteLLMTextService
 from ankinote.services.anki_factory import create_anki_client
-from ankinote.ui.config import (
-    CUSTOM_VENDOR,
+from ankinote.services.provider_factory import build_image_service, build_text_service
+from ankinote.settings import (
     ProviderProfile,
     apply_env,
     load_settings,
 )
 from ankinote.ui.i18n import set_locale, t
-from ankinote.ui.image_service import build_image_service
 from ankinote.ui.sync import (
     retain_generated_save,
     save_allowed,
@@ -177,11 +175,7 @@ def word_page() -> None:  # noqa: C901 - UI composition
                 settings.text_providers.get(settings.active_text_provider)
                 or ProviderProfile()
             )
-            text_service = LiteLLMTextService(
-                api_base=text_profile.base_url or None,
-                api_key=text_profile.api_key or None,
-                force_openai_route=text_profile.vendor == CUSTOM_VENDOR,
-            )
+            text_service = build_text_service(text_profile)
 
             success_count = 0
             fail_count = 0

@@ -12,7 +12,7 @@ from ankinote.services.anki_factory import (
     stop_anki_backend,
 )
 from ankinote.services.collection_runtime import CollectionRuntimeError
-from ankinote.ui.config import (
+from ankinote.settings import (
     get_or_create_storage_secret,
     load_settings,
     save_settings,

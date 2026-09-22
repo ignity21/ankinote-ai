@@ -8,9 +8,13 @@ import pytest
 from PIL import Image
 from pytest_mock import MockerFixture
 
-from ankinote.services.ai import IMAGE_GENERATION_TIMEOUT_SECONDS, LiteLLMImageService
-from ankinote.ui.config import CUSTOM_VENDOR, ProviderProfile
-from ankinote.ui.image_service import build_image_service
+from ankinote.services.ai import (
+    IMAGE_GENERATION_TIMEOUT_SECONDS,
+    LiteLLMImageService,
+    LiteLLMTextService,
+)
+from ankinote.services.provider_factory import build_image_service, build_text_service
+from ankinote.settings import CUSTOM_VENDOR, PROVIDERS, ProviderProfile
 
 
 @pytest.mark.parametrize(
@@ -112,3 +116,39 @@ async def test_fal_preserves_existing_endpoints_and_http_errors(
     with pytest.raises(httpx.HTTPStatusError) as exc:
         await service.generate_image(prompt="diagram")
     assert exc.value.response.status_code == 401
+
+
+def test_build_text_service_passes_builtin_vendor_key_and_base_explicitly() -> None:
+    """Every profile — not just custom ones — carries its own api_base/api_key
+    explicitly now, so multiple accounts of the same vendor can coexist."""
+    profile = ProviderProfile(
+        vendor="OpenAI",
+        model="gpt-4o",
+        base_url=PROVIDERS["OpenAI"]["api_base"],
+        api_key="sk-work",
+    )
+    service = build_text_service(profile)
+    assert isinstance(service, LiteLLMTextService)
+    assert service._api_base == PROVIDERS["OpenAI"]["api_base"]
+    assert service._api_key == "sk-work"
+    assert service._force_openai_route is False
+
+
+def test_build_text_service_forces_openai_route_for_custom_vendor() -> None:
+    profile = ProviderProfile(
+        vendor=CUSTOM_VENDOR,
+        base_url="https://example.test/v1",
+        model="llama-3.1-70b",
+        api_key="sk-abc",
+    )
+    service = build_text_service(profile)
+    assert service._api_base == "https://example.test/v1"
+    assert service._api_key == "sk-abc"
+    assert service._force_openai_route is True
+
+
+def test_build_text_service_falls_back_for_default_profile() -> None:
+    service = build_text_service(ProviderProfile())
+    assert service._api_base is None
+    assert service._api_key is None
+    assert service._force_openai_route is False

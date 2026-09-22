@@ -10,7 +10,7 @@ from ankinote.collections.phrase import PhraseCollection
 from ankinote.consts import TARGET_LANGUAGES, Language
 from ankinote.services.ai import LiteLLMTextService
 from ankinote.services.anki_factory import create_anki_client
-from ankinote.ui.config import (
+from ankinote.settings import (
     CUSTOM_VENDOR,
     ProviderProfile,
     apply_env,

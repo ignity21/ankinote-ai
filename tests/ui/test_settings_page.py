@@ -4,14 +4,14 @@ import pytest
 from nicegui import ui
 from nicegui.testing.user_simulation import user_simulation
 
-from ankinote.ui import sync
-from ankinote.ui.config import (
+from ankinote.settings import (
     CUSTOM_VENDOR,
     IMAGE_PROVIDERS,
     PROVIDERS,
     ProviderProfile,
     Settings,
 )
+from ankinote.ui import sync
 from ankinote.ui.pages import settings as settings_module
 from ankinote.ui.pages.settings import (
     _IMAGE_VENDOR_OPTIONS,
