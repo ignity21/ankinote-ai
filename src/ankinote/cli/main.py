@@ -32,7 +32,9 @@ def cli(ctx: click.Context):
     # ever saw it.
     apply_env(load_settings())
     if ctx.invoked_subcommand is None:
-        click.echo(ctx.get_help())
+        from ankinote.cli.tui import run_tui
+
+        run_tui()
 
 
 cli.add_command(word)

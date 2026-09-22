@@ -6,8 +6,22 @@ from ankinote.cli.main import cli
 from ankinote.settings import Settings, save_settings
 
 
-def test_bare_invocation_prints_help():
+def test_bare_invocation_is_not_a_tty_short_circuits_without_the_tui():
+    """CliRunner's stdin is never a TTY, so the interactive menu never opens.
+
+    Regression test for the bare-invocation behavior change: it used to print
+    ``ctx.get_help()`` here; now a non-interactive bare invocation (a script
+    or CI job that forgot a subcommand) gets a one-line hint instead, while an
+    interactive terminal gets the TUI (see ``ankinote.cli.tui.run_tui``, smoke
+    tested manually — not by ``CliRunner``, which never presents a TTY).
+    """
     result = CliRunner().invoke(cli, [])
+    assert result.exit_code == 0
+    assert "not running interactively" in result.output
+
+
+def test_bare_invocation_help_flag_still_prints_help():
+    result = CliRunner().invoke(cli, ["--help"])
     assert result.exit_code == 0
     assert "AI-powered Anki card generator" in result.output
 
