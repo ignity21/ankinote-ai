@@ -17,6 +17,8 @@ Use `uv` for dependencies and execution. Treat `pyproject.toml` as the source of
 
 For implementation tasks, continue through relevant verification and fix failures caused by the change. Choose checks proportional to the affected behavior; documentation-only edits do not need the Python suite. Rerun affected checks after fixes, and broaden coverage when shared behavior or unresolved failures warrant it. Routine local edits and checks within the requested scope need no separate confirmation.
 
+Before fixing a bug, first write a test that reproduces it; the fix isn't done until that test goes green.
+
 PRs should explain the resulting behavior and verification, with screenshots or sample output when useful for UI, card, or CLI changes.
 
 ## Maintaining These Instructions
