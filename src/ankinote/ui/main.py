@@ -74,6 +74,13 @@ def _create_layout() -> None:
         "items-center justify-between px-4 h-14 text-white"
     ):
         with ui.row().classes("items-center gap-2"):
+            menu_button = (
+                ui.button(icon="menu")
+                .props("flat round dense")
+                .classes("text-white lg:hidden")
+            )
+            with menu_button:
+                ui.tooltip(t("nav.menu"))
             ui.image("/static/ankinote-logo-micro.svg").classes("w-7 h-7")
             ui.label("AnkiNote").classes("text-lg font-bold text-white")
 
@@ -117,7 +124,9 @@ def _create_layout() -> None:
         "w-full px-3 py-2 rounded text-base no-underline text-gray-700 "
         "dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-gray-700/40"
     )
-    with ui.left_drawer(value=True).props("width=270"):
+    drawer = ui.left_drawer(value=True).props("width=270")
+    menu_button.on_click(drawer.toggle)
+    with drawer:
         ui.label(t("nav.navigation")).classes(
             "text-sm font-semibold text-gray-500 dark:text-slate-300 px-4 pt-4 pb-2"
         )
