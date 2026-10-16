@@ -1,6 +1,11 @@
 {
   "nav.navigation": "Navigation",
-  "nav.menu": "Menu",
+  "nav.tab_word": "Words",
+  "nav.tab_phrase": "Phrases",
+  "nav.tab_sentence": "Sentences",
+  "nav.tab_stem": "STEM",
+  "nav.tab_card_types": "Types",
+  "nav.tab_settings": "Settings",
   "nav.word_cards": "📝  Word Cards",
   "nav.phrase_cards": "💬  Phrase & Idiom Cards",
   "nav.sentence_cards": "💭  Sentence Cards",

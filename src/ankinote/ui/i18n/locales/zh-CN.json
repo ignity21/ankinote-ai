@@ -1,6 +1,11 @@
 {
   "nav.navigation": "导航",
-  "nav.menu": "菜单",
+  "nav.tab_word": "单词",
+  "nav.tab_phrase": "短语",
+  "nav.tab_sentence": "句子",
+  "nav.tab_stem": "STEM",
+  "nav.tab_card_types": "类型",
+  "nav.tab_settings": "设置",
   "nav.word_cards": "📝  单词卡片",
   "nav.phrase_cards": "💬  短语和习语卡片",
   "nav.sentence_cards": "💭  句子卡片",

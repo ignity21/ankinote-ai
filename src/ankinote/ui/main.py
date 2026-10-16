@@ -52,12 +52,40 @@ _THEME_CSS = f"""
   .body--dark .q-drawer {{ background: #1c1f26; border-right-color: #2a2e38; }}
   .body--dark .q-header {{ background: #222834; }}
   .body--dark .q-card {{ background: {_SURFACE_DARK}; }}
+  /* Bottom tab bar (narrow screens). Every tab is a full-height tap target. */
+  .ankinote-tabbar {{
+    background: #fff; color: #5f6368; border-top: 1px solid #e8eaed;
+    padding-bottom: env(safe-area-inset-bottom);
+  }}
+  .ankinote-tab {{
+    flex: 1 1 0; min-width: 0; min-height: 56px; gap: 2px;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; color: inherit; text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }}
+  .ankinote-tab .q-icon {{ padding: 2px 16px; border-radius: 16px; }}
+  .ankinote-tab > div {{ max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+  .ankinote-tab--active {{ color: {_PRIMARY}; font-weight: 600; }}
+  .ankinote-tab--active .q-icon {{ background: {_PRIMARY}1f; }}
+  .body--dark .ankinote-tabbar {{ background: #1c1f26; color: #9aa0ac; border-top-color: #2a2e38; }}
+  .body--dark .ankinote-tab--active {{ color: {_PRIMARY_DARK}; }}
+  .body--dark .ankinote-tab--active .q-icon {{ background: {_PRIMARY_DARK}26; }}
   /* Lift the accent so it stays legible on the dark surface. */
   .body--dark .text-primary {{ color: {_PRIMARY_DARK}; }}
 </style>
 """
 
 ui.add_head_html(_THEME_CSS, shared=True)
+
+# (path, icon, drawer label key, tab bar label key)
+_NAV_ITEMS = (
+    ("/", "abc", "nav.word_cards", "nav.tab_word"),
+    ("/phrases", "format_quote", "nav.phrase_cards", "nav.tab_phrase"),
+    ("/sentences", "notes", "nav.sentence_cards", "nav.tab_sentence"),
+    ("/stem", "science", "nav.stem_cards", "nav.tab_stem"),
+    ("/notetypes", "style", "nav.card_types", "nav.tab_card_types"),
+    ("/settings", "settings", "nav.settings", "nav.tab_settings"),
+)
 
 
 def _create_layout() -> None:
@@ -74,13 +102,6 @@ def _create_layout() -> None:
         "items-center justify-between px-4 h-14 text-white"
     ):
         with ui.row().classes("items-center gap-2"):
-            menu_button = (
-                ui.button(icon="menu")
-                .props("flat round dense")
-                .classes("text-white lg:hidden")
-            )
-            with menu_button:
-                ui.tooltip(t("nav.menu"))
             ui.image("/static/ankinote-logo-micro.svg").classes("w-7 h-7")
             ui.label("AnkiNote").classes("text-lg font-bold text-white")
 
@@ -119,25 +140,36 @@ def _create_layout() -> None:
                             f"dense {'active' if locale == settings.ui_language else ''}"
                         )
 
-    # Left drawer (navigation)
+    # Navigation: a side drawer on wide screens, a bottom tab bar on narrow ones.
+    # The tab bar is always visible and thumb-reachable, so there is nothing to
+    # swipe out or tap away to dismiss.
+    current_path = ui.context.client.request.url.path
     _nav_link_classes = (
         "w-full px-3 py-2 rounded text-base no-underline text-gray-700 "
         "dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-gray-700/40"
     )
-    drawer = ui.left_drawer(value=True).props("width=270")
-    menu_button.on_click(drawer.toggle)
+    drawer = ui.left_drawer(value=None).props(
+        "width=270 breakpoint=1024 no-swipe-open no-swipe-close no-swipe-backdrop"
+    )
     with drawer:
         ui.label(t("nav.navigation")).classes(
             "text-sm font-semibold text-gray-500 dark:text-slate-300 px-4 pt-4 pb-2"
         )
-
         with ui.column().classes("w-full gap-1 px-2"):
-            ui.link(t("nav.word_cards"), "/").classes(_nav_link_classes)
-            ui.link(t("nav.phrase_cards"), "/phrases").classes(_nav_link_classes)
-            ui.link(t("nav.sentence_cards"), "/sentences").classes(_nav_link_classes)
-            ui.link(t("nav.stem_cards"), "/stem").classes(_nav_link_classes)
-            ui.link(t("nav.card_types"), "/notetypes").classes(_nav_link_classes)
-            ui.link(t("nav.settings"), "/settings").classes(_nav_link_classes)
+            for path, _icon, long_key, _short_key in _NAV_ITEMS:
+                ui.link(t(long_key), path).classes(_nav_link_classes)
+
+    with (
+        ui.footer().classes("lg:hidden p-0 ankinote-tabbar"),
+        ui.row().classes("w-full no-wrap gap-0"),
+    ):
+        for path, icon, _long_key, short_key in _NAV_ITEMS:
+            active = path == current_path
+            with ui.link(target=path).classes(
+                "ankinote-tab" + (" ankinote-tab--active" if active else "")
+            ):
+                ui.icon(icon).classes("text-2xl")
+                ui.label(t(short_key)).classes("text-xs")
 
 
 @ui.page("/")
