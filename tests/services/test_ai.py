@@ -89,6 +89,32 @@ async def test_litellm_text_service_disables_deepseek_thinking(
 
 
 @pytest.mark.asyncio
+async def test_litellm_text_service_omits_thinking_field_for_openai(
+    mocker: MockerFixture,
+):
+    completion = mocker.patch(
+        "ankinote.services.ai.acompletion",
+        return_value=SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))]
+        ),
+    )
+
+    service = LiteLLMTextService()
+    await service.generate_text(
+        model="gpt-5.6-luna",
+        messages=[{"role": "user", "content": "hello"}],
+        temperature=0.2,
+        reasoning_effort=DISABLE_REASONING,
+    )
+
+    kwargs = completion.await_args.kwargs
+    # OpenAI's API rejects the DeepSeek-only ``thinking`` field with
+    # "Unknown parameter: 'thinking'".
+    assert "extra_body" not in kwargs
+    assert "reasoning_effort" not in kwargs
+
+
+@pytest.mark.asyncio
 async def test_litellm_text_service_forwards_named_reasoning_effort(
     mocker: MockerFixture,
 ):

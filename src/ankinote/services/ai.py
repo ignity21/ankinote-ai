@@ -176,8 +176,9 @@ class LiteLLMTextService:
         if reasoning_effort == DISABLE_REASONING:
             # DeepSeek honours the OpenAI-format ``thinking`` field, not
             # ``reasoning_effort`` (which its LiteLLM routing discards).  Other
-            # OpenAI-compatible servers ignore the unknown field.
-            completion_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+            # providers keep their default: OpenAI rejects the unknown field.
+            if "deepseek" in model.lower():
+                completion_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
         elif reasoning_effort is not None:
             completion_kwargs["reasoning_effort"] = reasoning_effort
         if self._api_base is not None:
