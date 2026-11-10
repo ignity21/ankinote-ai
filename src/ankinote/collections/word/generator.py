@@ -3,6 +3,7 @@
 import asyncio
 import json
 from dataclasses import dataclass, field
+from functools import cache
 from importlib.resources import files
 from typing import cast
 
@@ -56,9 +57,27 @@ def _extract_json_payload(content: str) -> str:
     return stripped
 
 
-def _build_image_user_prompt(lemma: str, sense: Sense) -> str:
-    meaning = sense.image_gloss or sense.target_text
-    return f"Lemma: {lemma}\nMeaning (English): {meaning}"
+@cache
+def _image_style() -> str:
+    return (
+        files("ankinote.collections.word.prompts")
+        .joinpath("image.md")
+        .read_text(encoding="utf-8")
+        .strip()
+    )
+
+
+def build_image_prompt(sense: Sense) -> str | None:
+    """Return the image-model prompt for a sense, or None when it has no scene.
+
+    The prompt is a plain visual description followed by a fixed style suffix.
+    Neither the lemma nor any instruction text is included: Flux-style models
+    render words they see and cannot follow negations like "no text".
+    """
+    scene = (sense.image_prompt or "").strip().rstrip(".")
+    if not scene:
+        return None
+    return f"{scene}. {_image_style()}"
 
 
 async def generate_word_data(
@@ -182,13 +201,19 @@ class WordGenerator:
                 ]
                 image_tasks: dict[int, asyncio.Task[bytes]] = {}
                 if self._image_service is not None:
-                    image_tasks = {
-                        idx: tg.create_task(
-                            self._generate_image(word_model.lemma, sense)
+                    for idx, sense in enumerate(senses):
+                        if not sense.is_visualizable:
+                            continue
+                        prompt = build_image_prompt(sense)
+                        if prompt is None:
+                            logger.warning(
+                                f"Skipping image for '{word_model.lemma}' "
+                                f"sense[{idx}]: no image_prompt"
+                            )
+                            continue
+                        image_tasks[idx] = tg.create_task(
+                            self._image_service.generate_image(prompt=prompt)
                         )
-                        for idx, sense in enumerate(senses)
-                        if sense.is_visualizable
-                    }
         except* Exception as exc_group:
             messages = [str(sub_exc) for sub_exc in exc_group.exceptions]
             for sub_exc in exc_group.exceptions:
@@ -227,16 +252,3 @@ class WordGenerator:
         if target_lang in RUBY_ANNOTATION_LANGUAGES:
             text = strip_phonetic_annotations(text)
         return await self._tts_service.synthesize(text)
-
-    async def _generate_image(self, lemma: str, sense: Sense) -> bytes:
-        if self._image_service is None:
-            raise RuntimeError("Image service not available")
-        system_prompt = (
-            files("ankinote.collections.word.prompts")
-            .joinpath("image.md")
-            .read_text(encoding="utf-8")
-        )
-        user_prompt = _build_image_user_prompt(lemma, sense)
-        return await self._image_service.generate_image(
-            prompt=f"{system_prompt}\n\n{user_prompt}",
-        )

@@ -6,7 +6,7 @@ from typing import cast
 import pytest
 
 from ankinote.collections.word.collection import MediaReferences, WordCollection
-from ankinote.collections.word.generator import _build_image_user_prompt
+from ankinote.collections.word.generator import build_image_prompt
 from ankinote.collections.word.models import Example, Sense, WordModel
 from ankinote.consts import Language
 from ankinote.services.ai import ImageGenerationService, TextGenerationService
@@ -207,26 +207,33 @@ def test_word_model_accepts_japanese_ruby_schema():
     assert model.core_meaning.target_text.startswith("<招:まね>")
 
 
-def test_build_image_user_prompt_prefers_english_gloss_over_target_text():
+def test_build_image_prompt_uses_scene_without_lemma_or_text_words():
     sense = Sense(
         target_text="雨や日差しを防ぐための道具",
         native_text="伞",
-        image_gloss="a tool used to block rain or sunlight",
+        image_prompt="A woman holding an open red umbrella in heavy rain",
         is_visualizable=True,
     )
 
-    prompt = _build_image_user_prompt("傘", sense)
+    prompt = build_image_prompt(sense)
 
-    assert "a tool used to block rain or sunlight" in prompt
+    assert prompt is not None
+    assert prompt.startswith("A woman holding an open red umbrella in heavy rain")
+    assert "傘" not in prompt
     assert "雨や日差しを防ぐための道具" not in prompt
+    # Flux-family models cannot follow negation; naming text only invites it.
+    for trigger in ("text", "letter", "word", "label", "flashcard", "icon"):
+        assert trigger not in prompt.lower()
 
 
-def test_build_image_user_prompt_falls_back_to_target_text_when_gloss_missing():
-    sense = Sense(target_text="a tool used to block rain", native_text="伞")
+def test_build_image_prompt_returns_none_without_scene():
+    sense = Sense(
+        target_text="a tool used to block rain",
+        native_text="伞",
+        is_visualizable=True,
+    )
 
-    prompt = _build_image_user_prompt("umbrella", sense)
-
-    assert "a tool used to block rain" in prompt
+    assert build_image_prompt(sense) is None
 
 
 def test_convert_to_note_type_renders_expected_html():

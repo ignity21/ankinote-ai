@@ -83,6 +83,63 @@ class TestWordGenerator:
         assert media.example_audios == [b"audio:a test example"]
         assert synth.calls == ["test", "a test example"]
 
+    @pytest.mark.asyncio
+    async def test_generate_media_sends_scene_prompt_without_lemma(self):
+        images = FakeImageService()
+        generator = WordGenerator(
+            tts_service=FakeSpeechSynthesizer(),
+            text_service=FakeTextService(),
+            image_service=images,
+            text_model="text-model",
+        )
+        word_model = WordModel(
+            lemma="umbrella",
+            part_of_speech="noun",
+            difficulty="A2",
+            core_meaning=Sense(
+                target_text="a folding canopy that keeps off rain",
+                native_text="伞",
+                image_prompt="A man holding an open blue umbrella in the rain",
+                is_visualizable=True,
+            ),
+            examples=[WordExample(sentence="Take an umbrella.", translation="带伞。")],
+        )
+
+        media = await generator.generate_media(word_model, Language.ENGLISH)
+
+        assert media.images == {0: b"image:1"}
+        assert len(images.calls) == 1
+        assert "A man holding an open blue umbrella in the rain" in images.calls[0]
+        assert "Lemma" not in images.calls[0]
+
+    @pytest.mark.asyncio
+    async def test_generate_media_skips_image_without_scene_prompt(self):
+        images = FakeImageService()
+        generator = WordGenerator(
+            tts_service=FakeSpeechSynthesizer(),
+            text_service=FakeTextService(),
+            image_service=images,
+            text_model="text-model",
+        )
+        word_model = WordModel(
+            lemma="retarded",
+            part_of_speech="adjective",
+            difficulty="B2",
+            core_meaning=Sense(
+                target_text="slow in development",
+                native_text="发展迟缓的",
+                is_visualizable=True,
+            ),
+            examples=[
+                WordExample(sentence="Growth was retarded.", translation="生长受阻。")
+            ],
+        )
+
+        media = await generator.generate_media(word_model, Language.ENGLISH)
+
+        assert media.images == {}
+        assert images.calls == []
+
 
 class TestPhraseGenerator:
     """Media generation tests for phrase cards."""

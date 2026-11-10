@@ -20,8 +20,8 @@ Furigana rule:
     "core_meaning": {
       "target_text": "この品詞の短い日本語の説明。よく使う語義が複数あれば最大3つ、'; ' で区切る。近い同義語は '、' でまとめる。漢字には必ず <Kanji:reading> を付ける。",
       "native_text": "母語での短い訳。target_text と同じ順序・同じ数で '; ' で区切る。",
-      "image_gloss": "この語義の短い英語での説明（画像生成専用。必ず英語で書く）。target_text と同じ順序・同じ数で '; ' で区切る。",
-      "is_visualizable": true
+      "is_visualizable": true,
+      "image_prompt": "最も一般的な語義を表す具体的な場面を描写する英語の一文（画像生成専用）。描けない場合は null"
     },
     "examples": [
       {
@@ -39,8 +39,10 @@ Furigana rule:
 
 Rules:
 - Return 1 to 2 records total for the queried word. Keep only the most common and worth-learning parts of speech.
-- `core_meaning` covers only the queried part of speech. Include its 1 to 3 most common senses, `target_text`, `native_text`, and `image_gloss` sense-aligned and all separated by '; '.
-- `image_gloss` must always be written in English regardless of the target or native language, even if that duplicates `target_text`. It exists only to drive an image-generation model and should be a short, concrete, literal description of the sense (not the word itself).
+- `core_meaning` covers only the queried part of speech. Include its 1 to 3 most common senses, `target_text` and `native_text` sense-aligned and separated by '; '.
+- `is_visualizable` is true only when the single most common sense can be recognized from a picture alone: a concrete object, creature, place, physical action, or visible state (e.g. umbrella, climb, crowded, exhausted). Set it to false for abstract, evaluative, grammatical, or function words, for senses that only make sense with words or numbers, and for slurs or offensive senses.
+- `image_prompt` is an English scene description for a text-to-image model, written in English regardless of the target or native language, or null when `is_visualizable` is false. Depict only the single most common sense. Write one sentence of at most 30 words naming the main subject, what it is doing, and minimal setting, e.g. "A tired man slumped on a sofa, eyes half closed, yawning". For adjectives and verbs, show a person, animal, or object that clearly displays the quality or action.
+- `image_prompt` must describe only what is visible. Never include the lemma, its translation, quotation marks, or style words. Avoid anything that usually carries writing, such as signs, books, screens, documents, labels, packaging, or banners, since the image model will fill them with garbled text.
 - `examples` must contain 1 to 2 high-value examples tied to the core meaning.
 - `collocations` must contain 2 to 4 common combinations when available.
 - `confusions` may contain 0 to 2 short native-language contrasts or misuse warnings.

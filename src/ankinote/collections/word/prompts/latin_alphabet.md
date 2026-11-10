@@ -15,8 +15,8 @@ Goal: generate compact learning data for Anki cards optimized for recognition, r
     "core_meaning": {
       "target_text": "Short target-language definition(s) for this part of speech. If the POS has several distinct common senses, give up to 3, separated by '; '. Join close synonyms of one sense with '、'.",
       "native_text": "Native-language translation(s), in the same order and count as target_text, separated by '; '.",
-      "image_gloss": "Short English gloss(es) of this sense, used only for image generation. Same order and count as target_text, separated by '; '. Write in English even if it duplicates target_text (e.g. when the target language is already English).",
-      "is_visualizable": true
+      "is_visualizable": true,
+      "image_prompt": "One English sentence describing a concrete scene that depicts the most common sense, or null"
     },
     "examples": [
       {
@@ -34,8 +34,10 @@ Goal: generate compact learning data for Anki cards optimized for recognition, r
 
 Rules:
 - Return 1 to 2 records total for the queried word. Keep only the most common and worth-learning parts of speech.
-- `core_meaning` covers only the queried part of speech. Include its 1 to 3 most common senses, `target_text`, `native_text`, and `image_gloss` sense-aligned and all separated by '; '. Keep each sense short and memorable.
-- `image_gloss` must always be written in English regardless of the target or native language. It exists only to drive an image-generation model and should be a short, concrete, literal description of the sense (not the word itself).
+- `core_meaning` covers only the queried part of speech. Include its 1 to 3 most common senses, `target_text` and `native_text` sense-aligned and separated by '; '. Keep each sense short and memorable.
+- `is_visualizable` is true only when the single most common sense can be recognized from a picture alone: a concrete object, creature, place, physical action, or visible state (e.g. umbrella, climb, crowded, exhausted). Set it to false for abstract, evaluative, grammatical, or function words, for senses that only make sense with words or numbers, and for slurs or offensive senses.
+- `image_prompt` is an English scene description for a text-to-image model, written in English regardless of the target or native language, or null when `is_visualizable` is false. Depict only the single most common sense. Write one sentence of at most 30 words naming the main subject, what it is doing, and minimal setting, e.g. "A tired man slumped on a sofa, eyes half closed, yawning". For adjectives and verbs, show a person, animal, or object that clearly displays the quality or action.
+- `image_prompt` must describe only what is visible. Never include the lemma, its translation, quotation marks, or style words. Avoid anything that usually carries writing, such as signs, books, screens, documents, labels, packaging, or banners, since the image model will fill them with garbled text.
 - `examples` must contain 1 to 2 high-value examples tied to the core meaning.
 - `collocations` must contain 2 to 4 common combinations when available.
 - `confusions` may contain 0 to 2 items about near-synonyms, false friends, or common misuse.
