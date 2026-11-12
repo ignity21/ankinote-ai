@@ -105,6 +105,7 @@ Workstreams, in order (reordered 2026-11-12 for the 1.0 rewrite below):
 1. README fixes and a one-line install (done, shipped in v0.6.5).
 2. Design language: one token set (palettes, fonts) shared by the Web UI and
    the cards, plus mocks of the first-run wizard and the generate page.
+   Direction chosen 2026-11-12; see [Design Language](design/design-language.md).
 3. 1.0 rewrite: an API layer and the new frontend (wizard and generate pages
    first), alongside the backend one-key work — one-key presets, additional
    TTS providers, graceful degradation.
@@ -141,7 +142,10 @@ storage secret no longer need env vars (shipped 2026-09-22).
 ### 1.0 rewrite (decided 2026-11-12)
 
 0.x is frozen at v0.6.5; the `release/0.x` branch takes critical fixes only.
-`main` is the 1.0 productization rewrite.
+The 1.0 productization rewrite lives on the long-lived `feat/1.0` branch and
+merges into `main` once its acceptance checks are green; until then `main`
+stays at 0.x and runnable. (Changed 2026-11-12 from rewriting on `main`
+directly.)
 
 - **Frontend.** Product taste is part of the product, and the wizard, theme
   preview, and launch screenshots are the first impression. The NiceGUI UI is

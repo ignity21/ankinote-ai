@@ -8,7 +8,9 @@
 
 ## Development
 
-Use `uv` for dependencies and execution. Treat `pyproject.toml` as the source of truth for Python compatibility and tool settings; `Makefile` defines task shortcuts.
+Pin interpreters and tool versions (Python, Node, the frontend package manager) with `mise` wherever mise can manage them. Use `uv` for Python dependencies and execution; the frontend uses its own package manager.
+
+1.0 rewrite work goes on the `feat/1.0` branch, not `main`; see the [roadmap](docs/roadmap.md#10-rewrite-decided-2026-11-12). Treat `pyproject.toml` as the source of truth for Python compatibility and tool settings; `Makefile` defines task shortcuts.
 
 - Tests: `uv run pytest [path]`.
 - Formatting: `uv run ruff format [path]`.
