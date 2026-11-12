@@ -76,43 +76,64 @@ Open items:
 
 Status: minor follow-ups; not scheduled.
 
-## Productization: single GUI-only surface
+## Productization: shorter path to the first card
 
-Direction under consideration, nothing decided or scheduled: shrink ankinote
-to one clear entry point — the Web UI — instead of a CLI + GUI + env-var
-config split.
+Direction agreed 2026-11-12; work breakdown in
+[plans/productization.md](plans/productization.md).
 
-- **Drop the CLI?** Open question: `.agents/skills/ankinote-cli/SKILL.md`
-  currently makes `ankinote` the integration point for AI coding assistants
-  (batch card generation via agent), not just a terminal feature. Cutting the
-  CLI removes that path unless it's replaced — a documented HTTP API is the
-  natural substitute, since the Web UI already runs on FastAPI (NiceGUI).
-  Whether to keep an automation surface at all depends on who the
-  productized version is for.
-- **Remove the remaining env vars; configure everything from Settings.**
-  Checked 2026-09-15: mostly feasible without a redesign.
-  `services/anki_factory.py` already isolates backend selection behind one
-  seam (`resolve_backend()` / `start_anki_backend()` / `stop_anki_backend()`),
-  and `ui/config.py`'s `apply_env()` already pushes Settings-page values into
-  the same `envs` object those functions read from — so a live
-  `ANKI_BACKEND` / `ANKI_COLLECTION_PATH` switch in the Settings page (stop
-  the current backend, apply the new values, start the new one) is UI work
-  on an existing seam, not new plumbing. `ANKINOTE_HOST`/`PORT` and
-  `ANKINOTE_STORAGE_SECRET` can't become Settings fields — the GUI needs them
-  before there's any UI to configure from — but the storage secret at least
-  could be auto-generated and persisted on first run instead of required as
-  an env var, making it invisible to the user in practice.
-- **Rewrite the UI as a real JS/TS frontend?** Raised, not decided either
-  way. NiceGUI is Python-server-driven (Vue/Quasar over WebSocket, no
-  standalone REST API today); a real SPA would mean building a formal API
-  first — which would also give the CLI-removal question an automation
-  alternative — plus a full UI rewrite: the highest-cost of these options for
-  what is currently a single-maintainer Python codebase. Only worth it if
-  NiceGUI is structurally blocking something specific (offline PWA, native
-  packaging, a frontend hire), not on its own.
+Positioning: a free, open, bring-your-own-key card maker for self-hosters and
+heavy Anki users, not a general-purpose toolkit. The fixed prompts and note
+types are the product. What holds adoption back is the distance between
+hearing about the project and holding a first good card: three model routes
+to configure, Google-Cloud-only TTS, several pieces of software to wire
+together, and no way to see card quality before installing.
 
-Status: idea only; not scheduled. Explicitly parked until the user has
-thought it through — do not start implementation from this section alone.
+Principles:
+
+- **Show the result before the install** — sample deck, GIF, Chinese README.
+- **One key is enough** — a single Gemini or OpenAI key covers text, image,
+  and audio; a text-only key still produces cards, without media.
+- **One recommended path** — the headless `collection` backend with AnkiWeb
+  sync ("add a word from the phone browser, it shows up on every Anki
+  client"). `connect` stays as the alternative for existing Anki Desktop
+  users.
+- **Curated over configurable** — a few good themes and language pairs
+  rather than open-ended editors.
+
+Workstreams, in order:
+
+1. README fixes and a one-line install.
+2. One-key presets, additional TTS providers, graceful degradation, and a
+   first-run wizard.
+3. Languages: add Chinese and Korean as targets so English, Spanish, French,
+   German, Japanese, Chinese, and Korean work in any native/target pairing.
+4. Card themes: a small set of palettes, light and dark chosen independently.
+5. Showcase and launch: sample deck, GIF, Chinese README, deploy templates.
+
+Confirmed 2026-11-12 for workstreams 3 and 4:
+
+- **Languages.** Any-pair support is a smaller step than it sounds: every
+  language is already selectable as the native language and has a TTS code,
+  so only Chinese and Korean are missing as targets. Chinese as a target has
+  the most value — it widens the audience from "Chinese speakers learning a
+  language" to "anyone learning Chinese", which is what makes the project
+  promotable in English-speaking Anki communities. Korean ships as beta until
+  a competent reader has reviewed its output. Existing prompts were tuned for
+  Chinese natives and need one review pass with English as the native
+  language.
+- **Themes.** Light and dark are already supported through CSS tokens under
+  `body` and `body.nightMode`; multi-theme means extracting those palettes
+  and letting the light and dark one be picked separately. Scope is three or
+  four curated palettes plus fonts — no layout variants and no in-app CSS
+  editor.
+
+Not planned: HyperTTS-level provider coverage, a hosted multi-user service,
+an Anki add-on rewrite, free-form prompt/template editing in the UI.
+
+Earlier questions, now settled: the CLI stays and shares `settings.json` with
+the Web UI (shipped 2026-09-22); the Anki backend, collection path, and
+storage secret no longer need env vars (shipped 2026-09-22). A JS/TS frontend
+rewrite remains parked — only worth it if NiceGUI blocks something concrete.
 
 ## Future major version: deployable web service
 
