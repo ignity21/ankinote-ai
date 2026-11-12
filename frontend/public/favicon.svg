@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Ankinote AI compact logo</title>
+  <desc id="desc">Compact blue-green memory orbit and flashcards for favicons and small UI.</desc>
+  <defs>
+    <linearGradient id="backCard" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#0754B8"/>
+      <stop offset="0.48" stop-color="#159DE0"/>
+      <stop offset="1" stop-color="#46E1C0"/>
+    </linearGradient>
+    <linearGradient id="frontCard" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#D8F2FF"/>
+    </linearGradient>
+    <linearGradient id="orbit" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#41DEC7"/>
+      <stop offset="0.5" stop-color="#108FD9"/>
+      <stop offset="1" stop-color="#36DDB3"/>
+    </linearGradient>
+    <linearGradient id="memoryDot" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#0879C8"/>
+      <stop offset="1" stop-color="#44E0B8"/>
+    </linearGradient>
+  </defs>
+  <rect x="302" y="203" width="410" height="604" rx="76"
+        transform="rotate(-9 507 505)" fill="url(#backCard)"/>
+  <path d="M183 595 C103 531 165 443 314 369 C483 285 711 251 823 288 C929 324 907 434 813 544 C780 590 750 620 720 650"
+        fill="none" stroke="url(#orbit)" stroke-width="62" stroke-linecap="round"/>
+  <rect x="332" y="258" width="430" height="568" rx="76"
+        transform="rotate(5 547 542)" fill="url(#frontCard)"/>
+  <path d="M183 595 C274 665 443 599 584 510 C654 466 706 425 738 390"
+        fill="none" stroke="url(#orbit)" stroke-width="62" stroke-linecap="round"/>
+  <circle cx="742" cy="385" r="51" fill="url(#memoryDot)"/>
+</svg>

@@ -29,8 +29,21 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
 
+      - name: Install Node and pnpm (mise.toml)
+        uses: jdx/mise-action@v2
+        with:
+          install_args: node pnpm
+
+      - name: Build frontend
+        run: |
+          pnpm --dir frontend install --frozen-lockfile
+          pnpm --dir frontend build
+
       - name: Build distributions
         run: uv build
+
+      - name: Check the frontend is in the wheel
+        run: unzip -l dist/*.whl | grep -q 'ankinote/web/dist/index.html'
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

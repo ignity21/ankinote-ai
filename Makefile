@@ -7,7 +7,7 @@
 .PHONY: test clean-test clean lint check format pre-commit help \
         build clean-dist bump-version \
         release release-check _release-guard docker-backfill \
-        install install-dev
+        install install-dev web-install web-dev web-build web-check
 
 clean-test:
 	rm -rf .pytest_cache
@@ -44,8 +44,29 @@ clean-dist:
 	rm -rf *.egg-info
 	rm -rf src/*.egg-info
 
-build: clean-dist
+build: clean-dist web-build
 	uv build
+
+##
+# Web frontend (frontend/, Svelte + Vite). Node and pnpm are pinned in
+# mise.toml; `mise exec` uses them even when mise isn't activated in the shell.
+
+PNPM = mise exec -- pnpm --dir frontend
+
+web-install:
+	$(PNPM) install --frozen-lockfile
+
+# API on :8000 with reload, Vite on :5173 proxying /api to it.
+web-dev:
+	@trap 'kill 0' EXIT; \
+	uv run uvicorn --factory ankinote.web.app:create_app --reload --port 8000 & \
+	$(PNPM) dev
+
+web-build:
+	$(PNPM) build
+
+web-check:
+	$(PNPM) check
 
 bump-version:
 	@test -n "$(part)" || (echo "Usage: make bump-version part=<major|minor|patch>" && exit 1)
@@ -97,6 +118,8 @@ release: _release-guard release-check
 	git push origin main; \
 	git push origin "$$tag"; \
 	rm -rf dist; \
+	$(PNPM) install --frozen-lockfile; \
+	$(PNPM) build; \
 	uv build; \
 	gh release create "$$tag" --title "$$tag" --generate-notes \
 		"dist/ankinote_ai-$$version-py3-none-any.whl" \
@@ -118,7 +141,11 @@ help:
 	@echo "  check           - Run static type checks"
 	@echo "  format          - Format code with ruff"
 	@echo "  pre-commit      - Run format, lint, and check"
-	@echo "  build           - Build wheel and sdist"
+	@echo "  build           - Build the frontend, then wheel and sdist"
+	@echo "  web-install     - Install frontend dependencies (pnpm via mise)"
+	@echo "  web-dev         - Run the API (:8000) and Vite dev server (:5173)"
+	@echo "  web-build       - Build the frontend into src/ankinote/web/dist"
+	@echo "  web-check       - Type-check the frontend (svelte-check)"
 	@echo "  bump-version    - Bump version (part=patch|minor|major)"
 	@echo "  release-check   - Verify the repo is ready to release"
 	@echo "  release         - Bump, tag, push, and create the GitHub Release"

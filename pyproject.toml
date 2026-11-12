@@ -21,6 +21,7 @@ dependencies = [
     "asynciolimiter>=1.2.0",
     "click>=8.2.0",
     "cryptography>=43.0.0",
+    "fastapi>=0.141.1",
     "google-cloud-texttospeech>=2.31.0",
     "litellm>=1.81.9",
     "loguru>=0.7.3",
@@ -31,11 +32,13 @@ dependencies = [
     "questionary>=2.0",
     "rich>=14.1.0",
     "shortuuid>=1.0.13",
+    "uvicorn>=0.52.3",
 ]
 
 [project.scripts]
 ankinote = "ankinote.cli.main:main"
 ankinote-gui = "ankinote.ui.main:start_gui"
+ankinote-web = "ankinote.web.main:main"
 
 [project.urls]
 Homepage = "https://github.com/ignity21/ankinote-ai"
@@ -47,6 +50,11 @@ path = "src/ankinote/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ankinote"]
+# The built frontend is gitignored but must ship in the wheel.
+artifacts = ["src/ankinote/web/dist/**"]
+
+[tool.hatch.build.targets.sdist]
+artifacts = ["src/ankinote/web/dist/**"]
 
 [project.optional-dependencies]
 # In-process Anki collection backend (ANKI_BACKEND=collection). Ships abi3

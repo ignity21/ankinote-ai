@@ -1,0 +1,26 @@
+{
+  "default": "kanagawa",
+  "roles": ["outer", "tile", "border", "fg", "muted", "accent", "accent2", "ok", "warn", "err", "sel", "on-accent"],
+  "palettes": {
+    "kanagawa": {
+      "name": "Kanagawa",
+      "dark":  {"outer": "#16161D", "tile": "#1F1F28", "border": "#363646", "fg": "#DCD7BA", "muted": "#A3A08F", "accent": "#7E9CD8", "accent2": "#E6C384", "ok": "#98BB6C", "warn": "#FFA066", "err": "#E46876", "sel": "#2D4F67", "on-accent": "#16161D"},
+      "light": {"outer": "#E4DCB0", "tile": "#F2ECBC", "border": "#CFC79A", "fg": "#545464", "muted": "#6A6960", "accent": "#4D699B", "accent2": "#A35100", "ok": "#5A7140", "warn": "#A35100", "err": "#B23548", "sel": "#D7DCC8", "on-accent": "#F2ECBC"}
+    },
+    "tokyo-night": {
+      "name": "Tokyo Night",
+      "dark":  {"outer": "#16161E", "tile": "#1A1B26", "border": "#2F334D", "fg": "#C0CAF5", "muted": "#9099C5", "accent": "#7AA2F7", "accent2": "#E0AF68", "ok": "#9ECE6A", "warn": "#FF9E64", "err": "#F7768E", "sel": "#283457", "on-accent": "#16161E"},
+      "light": {"outer": "#CDD2E2", "tile": "#E1E2E7", "border": "#BFC4D8", "fg": "#3760BF", "muted": "#4F5679", "accent": "#2960B8", "accent2": "#8C5A16", "ok": "#4F6A2E", "warn": "#964D08", "err": "#B8264F", "sel": "#C4CDEB", "on-accent": "#FFFFFF"}
+    },
+    "gruvbox": {
+      "name": "Gruvbox",
+      "dark":  {"outer": "#1D2021", "tile": "#282828", "border": "#3C3836", "fg": "#EBDBB2", "muted": "#A89984", "accent": "#FABD2F", "accent2": "#8EC07C", "ok": "#B8BB26", "warn": "#FE8019", "err": "#FD5F4A", "sel": "#3C3836", "on-accent": "#1D2021"},
+      "light": {"outer": "#EBDBB2", "tile": "#FBF1C7", "border": "#D5C4A1", "fg": "#3C3836", "muted": "#665C54", "accent": "#AF3A03", "accent2": "#076678", "ok": "#6A660C", "warn": "#9A5A0E", "err": "#9D0006", "sel": "#EBDBB2", "on-accent": "#FBF1C7"}
+    },
+    "rose-pine": {
+      "name": "Rosé Pine",
+      "dark":  {"outer": "#191724", "tile": "#1F1D2E", "border": "#393552", "fg": "#E0DEF4", "muted": "#A6A3C2", "accent": "#C4A7E7", "accent2": "#F6C177", "ok": "#9CCFD8", "warn": "#F6C177", "err": "#EB6F92", "sel": "#2A273F", "on-accent": "#191724"},
+      "light": {"outer": "#F2E9E1", "tile": "#FFFAF3", "border": "#DFDAD9", "fg": "#575279", "muted": "#6E6A8A", "accent": "#7A6397", "accent2": "#A5546B", "ok": "#286983", "warn": "#A1650F", "err": "#A5546B", "sel": "#F2E9E1", "on-accent": "#FFFAF3"}
+    }
+  }
+}

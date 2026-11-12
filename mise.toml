@@ -1,0 +1,10 @@
+# Interpreter and tool versions for development (AGENTS.md). Python packages
+# stay with uv; frontend packages with pnpm.
+[tools]
+node = "26.13.1"
+pnpm = "12.18.0"
+python = "3.14.2"  # keep in step with .python-version
+
+[env]
+# With mise active, uv uses mise's Python instead of downloading its own.
+UV_PYTHON_PREFERENCE = "only-system"

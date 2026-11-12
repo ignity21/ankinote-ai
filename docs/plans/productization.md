@@ -67,6 +67,17 @@ GCP project.
 3. **One-key presets.** In Settings and the wizard: "Gemini (one key)" and
    "OpenAI (one key)" fill the text, image, and TTS routes from a single
    pasted key. Existing per-route profiles stay for advanced use.
+   Model ids go stale as providers release and retire models, so (decided
+   2026-11-12):
+   - A preset only fills ordinary per-route profiles; Settings → Models shows
+     and edits them like any other profile.
+   - Preset model ids are data shipped with each release. A route the user
+     never edited is marked as following the preset and moves to the new
+     recommended model on upgrade; an edited route is left alone.
+   - When a provider reports a model as unknown or retired, the error names
+     the model and points to Settings → Models.
+   - No fetching preset updates from a remote server: it would add a network
+     dependency and a service to run.
 4. **First-run wizard.** Shown when no provider profile exists: paste key →
    live test → choose Anki connection (headless + AnkiWeb login by default) →
    set native/target language → create note types → generate one sample card.

@@ -225,6 +225,10 @@ __marimo__/
 
 # project
 output/
+src/ankinote/web/dist/
+frontend/node_modules/
+# The Python template's `lib/` rule above would hide the frontend's src/lib.
+!frontend/src/lib/
 words.txt
 phrases.txt
 sentences.txt

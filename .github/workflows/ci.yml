@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/1.0]
   pull_request:
     branches: [main]
 
@@ -36,6 +36,17 @@ jobs:
 
       - name: Run tests with coverage
         run: uv run pytest --cov --cov-report=xml
+
+      - name: Install Node and pnpm (mise.toml)
+        uses: jdx/mise-action@v2
+        with:
+          install_args: node pnpm
+
+      - name: Check and build frontend
+        run: |
+          pnpm --dir frontend install --frozen-lockfile
+          pnpm --dir frontend check
+          pnpm --dir frontend build
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

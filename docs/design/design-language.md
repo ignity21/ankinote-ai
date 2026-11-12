@@ -62,9 +62,9 @@ dark err, Gruvbox light ok). Re-check contrast whenever a value changes.
 
 ## Type
 
-- Sans: IBM Plex Sans, then `"PingFang SC", "Noto Sans SC", "Microsoft
-  YaHei", sans-serif` for Chinese. Mono: IBM Plex Mono with the same CJK
-  fallbacks. Self-host the Plex files (`woff2`, Latin subset plus IPA
+- Sans: IBM Plex Sans, then the system's Chinese face: `"PingFang SC",
+  "Hiragino Sans GB", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans
+  SC", "Microsoft YaHei"`. Mono: IBM Plex Mono with the same CJK fallbacks. Self-host the Plex files (`woff2`, Latin subset plus IPA
   extensions); never load fonts from a CDN at runtime.
 - UI body 15px / 1.5. Card body 16px / 1.6. Pane titles, status and keys
   13px mono (12px for `kbd`). Card headword 40–48px sans semibold. Sentence
@@ -119,7 +119,11 @@ be revisited); phone shows "Step 2 of 5" with a segmented progress bar.
 1. **Connect an AI model.** Provider choice (Gemini marked recommended;
    text-only providers like DeepSeek say up front that cards will have no
    images or audio), API key, then "Test connection" lists text / image /
-   audio as working or not supported.
+   audio as working or not supported, each with the model it will use and
+   "You can change models any time in Settings → Models." A collapsed
+   "Advanced: choose models" section edits each route's model (and base URL
+   for OpenAI-compatible services); it is the same per-route profile editor
+   Settings uses.
 2. **Connect Anki.** Built-in Anki with AnkiWeb login (recommended) or Anki
    Desktop via AnkiConnect. The password is used once to log in; only the
    login token AnkiWeb returns is stored (`anki_sync_driver.py` keeps the

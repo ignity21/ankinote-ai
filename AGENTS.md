@@ -16,6 +16,7 @@ Pin interpreters and tool versions (Python, Node, the frontend package manager) 
 - Formatting: `uv run ruff format [path]`.
 - Lint: `uv run ruff check [path]`.
 - Types: `uv run ty check`.
+- Frontend (`frontend/`, Svelte + Vite): `make web-dev` to develop, `make web-check` to type-check, `make web-build` before `uv build` (the wheel ships the build). Visual decisions follow [Design Language](docs/design/design-language.md); palette values live only in `src/ankinote/themes/palettes.json`.
 
 For implementation tasks, continue through relevant verification and fix failures caused by the change. Choose checks proportional to the affected behavior; documentation-only edits do not need the Python suite. Rerun affected checks after fixes, and broaden coverage when shared behavior or unresolved failures warrant it. Routine local edits and checks within the requested scope need no separate confirmation.
 
