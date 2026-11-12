@@ -13,6 +13,7 @@ from ankinote.services.anki_factory import (
 )
 from ankinote.services.collection_runtime import CollectionRuntimeError
 from ankinote.settings import (
+    apply_env,
     get_or_create_storage_secret,
     load_settings,
     save_settings,
@@ -214,9 +215,13 @@ def _settings_page() -> None:
     settings_page()
 
 
-@app.on_startup
 async def _open_anki_backend() -> None:
-    """Open the shared collection runtime once for the whole web app."""
+    """Open the shared collection runtime once for the whole web app.
+
+    Applies ``settings.json`` first so a backend chosen on the Settings page
+    survives a restart without ``ANKI_BACKEND`` in the environment.
+    """
+    apply_env(load_settings())
     try:
         await start_anki_backend()
     except (CollectionRuntimeError, AnkiBackendConfigError, OSError) as exc:
@@ -225,10 +230,15 @@ async def _open_anki_backend() -> None:
         logger.error("Anki backend failed to start: {}", exc)
 
 
-@app.on_shutdown
 async def _close_anki_backend() -> None:
     """Close the shared collection runtime on web app shutdown."""
     await stop_anki_backend()
+
+
+# Registered explicitly (not as decorators, which return None) so the hooks stay
+# importable for tests.
+app.on_startup(_open_anki_backend)
+app.on_shutdown(_close_anki_backend)
 
 
 def start_gui() -> None:
