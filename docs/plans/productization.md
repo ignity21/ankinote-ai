@@ -1,7 +1,8 @@
 # Productization Plan
 
 Status: direction and scope confirmed 2026-11-12 (including Phase 2
-languages and Phase 3 themes as scoped below); nothing started. Direction and rationale live in
+languages and Phase 3 themes as scoped below); Phase 0 done 2026-11-12,
+Phase 1 next. Direction and rationale live in
 the [roadmap](../roadmap.md#productization-shorter-path-to-the-first-card);
 this file is the work breakdown.
 
@@ -27,6 +28,21 @@ Cheap, no design decisions, unblocks everything else.
 
 Done when: a reader following only the first screen of the README gets a
 running Web UI.
+
+Done 2026-11-12. The install line is
+`uvx --from 'ankinote-ai[headless]' ankinote-gui`, verified from an empty
+uv cache and Python dir: uv picks the newest managed CPython satisfying
+`>=3.14`. Two code/deploy gaps surfaced and were fixed alongside:
+
+- The GUI startup hook opened the backend from env only, so a `collection`
+  backend chosen in Settings reverted to `connect` after a restart. It now
+  applies `settings.json` first, like the CLI.
+- Both compose stacks fell back to a fixed, public storage secret when
+  `ANKINOTE_STORAGE_SECRET` was unset; they now pass it through empty, so the
+  secret is generated and kept in the `ankinote-config` volume.
+
+The `connect` backend is still the code default; making `collection` the
+default is left to the Phase 1 wizard.
 
 ## Phase 1 — One key is enough (M)
 

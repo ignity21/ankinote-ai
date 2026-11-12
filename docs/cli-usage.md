@@ -44,7 +44,7 @@ ANKI_CONNECT_URL=http://localhost:8765
 ```
 
 The `ANKI_BACKEND`, `ANKI_COLLECTION_PATH`, and `ANKIWEB_USERNAME`/`ANKIWEB_PASSWORD`
-variables described in the [README's Web UI section](../README.md#what-still-needs-to-be-set-outside-the-browser)
+variables described in the [README's Web UI section](../README.md#environment-variables-optional)
 apply the same way to the CLI — the in-process backend and AnkiWeb sync
 aren't web-UI-only features, and the same values can be set via the `ankinote`
 menu instead of env vars.
