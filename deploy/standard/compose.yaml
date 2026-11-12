@@ -2,7 +2,7 @@
 # app on the host, or one elsewhere).
 #
 #   cd deploy/standard
-#   cp .env.example .env      # then fill it in
+#   cp .env.example .env      # optional: AnkiConnect URL, port, image tag
 #   docker compose up -d      # http://localhost:8080
 #
 # In the AnkiConnect add-on config set "webBindAddress": "0.0.0.0" and add the
@@ -28,7 +28,7 @@ services:
         required: false
     environment:
       ANKI_CONNECT_URL: ${ANKI_CONNECT_URL:-http://host.docker.internal:8765}
-      ANKINOTE_STORAGE_SECRET: ${ANKINOTE_STORAGE_SECRET:-ankinote-ui-session-key}
+      ANKINOTE_STORAGE_SECRET: ${ANKINOTE_STORAGE_SECRET:-}
     extra_hosts:
       # Lets the container reach the host on Linux too (Docker Desktop provides
       # host.docker.internal natively).

@@ -3,7 +3,7 @@
 # collection in the anki-data volume and syncs it straight with AnkiWeb.
 #
 #   cd deploy/headless
-#   cp .env.example .env             # set ANKINOTE_STORAGE_SECRET; add AnkiWeb login
+#   cp .env.example .env             # optional: AnkiWeb login, port, image tag
 #   docker compose up -d             # http://localhost:8080
 #
 # ANKIWEB_USERNAME / ANKIWEB_PASSWORD are optional: leave them blank and log in
@@ -30,7 +30,7 @@ services:
     environment:
       ANKI_BACKEND: collection
       ANKI_COLLECTION_PATH: /data/collection.anki2
-      ANKINOTE_STORAGE_SECRET: ${ANKINOTE_STORAGE_SECRET:-ankinote-ui-session-key}
+      ANKINOTE_STORAGE_SECRET: ${ANKINOTE_STORAGE_SECRET:-}
     volumes:
       # Provider profiles and API keys entered on the Settings page.
       - ankinote-config:/config

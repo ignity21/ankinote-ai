@@ -17,7 +17,7 @@ Each directory is standalone:
 
 ```bash
 cd deploy/standard        # or deploy/headless
-cp .env.example .env      # set ANKINOTE_STORAGE_SECRET (+ AnkiWeb login for headless)
+cp .env.example .env      # optional: AnkiWeb login (headless), port, image tag
 docker compose up -d      # http://localhost:8080
 ```
 
@@ -62,13 +62,16 @@ while the stack is running. Migrating from an AnkiConnect deployment: see
 - Provider profiles and API keys entered on the Settings page persist in the
   `ankinote-config` volume (`/config` in the container) — there is no need to put
   them in `.env`.
-- `ANKINOTE_STORAGE_SECRET` signs the GUI session cookie — generate one with
-  `openssl rand -hex 32`. Defaults to a shared built-in value if unset.
+- `ANKINOTE_STORAGE_SECRET` signs the GUI session cookie. Optional: when unset, a
+  random secret is generated on first start and kept in the `ankinote-config`
+  volume. Set it (e.g. `openssl rand -hex 32`) only to manage it yourself.
 - `ANKINOTE_PUBLISH` sets the published address/port (default `127.0.0.1:8080`).
   Use `8080` to bind all interfaces, `127.0.0.1:9000` for a different port.
 - `headless/` optionally takes `ANKIWEB_USERNAME` / `ANKIWEB_PASSWORD` to sign in
   to AnkiWeb without using the Settings page. When set they take precedence over
   a login entered in the UI, and the password is never persisted.
+- `ANKINOTE_IMAGE` overrides the image/tag (default
+  `ghcr.io/ignity21/ankinote-ai:latest`).
 
 ## Customizing beyond `.env`
 
@@ -86,8 +89,6 @@ services:
 
 Note list merges *append* (e.g. a `ports:` entry in the override is added, not
 replaced) — for the published port use `ANKINOTE_PUBLISH` instead.
-- `ANKINOTE_IMAGE` overrides the image/tag (default
-  `ghcr.io/ignity21/ankinote-ai:latest`).
 
 ## Building locally
 
