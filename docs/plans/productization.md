@@ -1,8 +1,11 @@
 # Productization Plan
 
 Status: direction and scope confirmed 2026-11-12 (including Phase 2
-languages and Phase 3 themes as scoped below); Phase 0 done 2026-11-12,
-Phase 1 next. Direction and rationale live in
+languages and Phase 3 themes as scoped below); Phase 0 done 2026-11-12.
+Reordered the same day for the 1.0 rewrite: a shared design language and the
+new frontend now come before Phase 1's UI work (see the roadmap's
+[1.0 rewrite](../roadmap.md#10-rewrite-decided-2026-11-12) section); the
+phase contents below still hold. Direction and rationale live in
 the [roadmap](../roadmap.md#productization-shorter-path-to-the-first-card);
 this file is the work breakdown.
 

@@ -100,17 +100,21 @@ Principles:
 - **Curated over configurable** — a few good themes and language pairs
   rather than open-ended editors.
 
-Workstreams, in order:
+Workstreams, in order (reordered 2026-11-12 for the 1.0 rewrite below):
 
-1. README fixes and a one-line install.
-2. One-key presets, additional TTS providers, graceful degradation, and a
-   first-run wizard.
-3. Languages: add Chinese and Korean as targets so English, Spanish, French,
+1. README fixes and a one-line install (done, shipped in v0.6.5).
+2. Design language: one token set (palettes, fonts) shared by the Web UI and
+   the cards, plus mocks of the first-run wizard and the generate page.
+3. 1.0 rewrite: an API layer and the new frontend (wizard and generate pages
+   first), alongside the backend one-key work — one-key presets, additional
+   TTS providers, graceful degradation.
+4. Languages: add Chinese and Korean as targets so English, Spanish, French,
    German, Japanese, Chinese, and Korean work in any native/target pairing.
-4. Card themes: a small set of palettes, light and dark chosen independently.
-5. Showcase and launch: sample deck, GIF, Chinese README, deploy templates.
+5. Card themes: a small set of palettes, light and dark chosen independently,
+   applied to the UI and the cards together.
+6. Showcase and launch: sample deck, GIF, Chinese README, deploy templates.
 
-Confirmed 2026-11-12 for workstreams 3 and 4:
+Confirmed 2026-11-12 for workstreams 4 and 5:
 
 - **Languages.** Any-pair support is a smaller step than it sounds: every
   language is already selectable as the native language and has a TTS code,
@@ -132,8 +136,29 @@ an Anki add-on rewrite, free-form prompt/template editing in the UI.
 
 Earlier questions, now settled: the CLI stays and shares `settings.json` with
 the Web UI (shipped 2026-09-22); the Anki backend, collection path, and
-storage secret no longer need env vars (shipped 2026-09-22). A JS/TS frontend
-rewrite remains parked — only worth it if NiceGUI blocks something concrete.
+storage secret no longer need env vars (shipped 2026-09-22).
+
+### 1.0 rewrite (decided 2026-11-12)
+
+0.x is frozen at v0.6.5; the `release/0.x` branch takes critical fixes only.
+`main` is the 1.0 productization rewrite.
+
+- **Frontend.** Product taste is part of the product, and the wizard, theme
+  preview, and launch screenshots are the first impression. The NiceGUI UI is
+  replaced by a JS/TS single-page app (Vite; framework chosen after the design
+  mocks). It is built in CI and bundled into the wheel, so the `uvx` install
+  needs no Node. The CLI/TUI stay and keep sharing `settings.json`.
+- **Bold restructuring.** Backend structure and tests may change freely, and
+  intermediate states need not run — only the finished 1.0 must.
+- **Guardrails.**
+  1. Before deleting a test, decide whether the behavior it guards still
+     matters in 1.0; port it if so.
+  2. Keep three to five end-to-end acceptance checks (fake LLM → temporary
+     collection → word and STEM cards, plus the sync flow). They may go red
+     briefly but must be green at every milestone.
+  3. Never break existing cards: note type names and fields stay or get a
+     migration (field changes force a full AnkiWeb sync), and 1.0 imports a
+     0.x `settings.json`.
 
 ## Future major version: deployable web service
 
