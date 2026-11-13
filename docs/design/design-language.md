@@ -168,6 +168,13 @@ it.
   the current one; Undo brings the old one back. The diagram is kept while
   the new card asks for the same one. Changing type after saving makes a
   new note of the new type; the old note stays.
+- **Fix with AI** (`F`), built 2026-11-13, sits in the list of formulas the
+  preview can't show. It sends the card and exactly those formulas with
+  MathJax's messages ("not closed" for unclosed ones) to the default text
+  model, which returns the card with only them fixed; the type and the
+  diagram are kept whatever the model says, and Undo brings the card back.
+  The live editor lists the same errors without the button: fix them in the
+  form, or apply the edit first.
 
 ## First-run wizard
 

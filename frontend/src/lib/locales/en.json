@@ -405,5 +405,9 @@
   "edit.col.description": "Meaning",
   "preview.template.Card 1": "Card",
   "preview.mathErr": "MathJax can't show these formulas, and Anki won't either:",
-  "preview.mathUnclosed": "not closed: check that every { has its }, and that the formula ends with \\) or \\]"
+  "preview.mathUnclosed": "not closed: check that every { has its }, and that the formula ends with \\) or \\]",
+  "fix.submit": "Fix with AI",
+  "fix.hint": "Only these formulas change; Undo brings the card back.",
+  "fix.working": "Fixing formulas… {s} s",
+  "fix.live": "Fix them in the form, or apply the edit and use Fix with AI."
 }

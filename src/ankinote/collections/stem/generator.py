@@ -2,6 +2,8 @@
 
 import base64
 import json
+from collections.abc import Sequence
+from dataclasses import dataclass
 from importlib.resources import files
 from typing import cast
 
@@ -67,6 +69,47 @@ def _rewrite_request(current: StemCard, instruction: str, card_type: CardType) -
         "Keep whatever the instruction doesn't ask to change, and keep the "
         "card's language unless the instruction asks for another."
     )
+    return "\n".join(lines)
+
+
+@dataclass(frozen=True)
+class LatexProblem:
+    """A formula the preview couldn't typeset, and MathJax's reason.
+
+    ``message`` is empty for a formula that was never found because it isn't
+    closed (unbalanced braces or no closing delimiter): MathJax shows those as
+    source without complaint.
+    """
+
+    tex: str
+    message: str
+
+
+def _latex_fix_request(current: StemCard, problems: Sequence[LatexProblem]) -> str:
+    """Ask for ``current`` back with only the broken formulas fixed."""
+    data = current.model_dump(mode="json", exclude={"card_type"})
+    lines = [
+        f"Current {current.card_type} card (JSON):",
+        json.dumps(data, ensure_ascii=False, indent=2),
+        "",
+        "The card preview (MathJax 3, as in Anki) can't show these formulas:",
+    ]
+    for problem in problems:
+        reason = (
+            f"MathJax: {problem.message}"
+            if problem.message
+            else "not closed: its braces don't balance, or it lacks the "
+            "closing \\) or \\]"
+        )
+        lines.append(f"- `{problem.tex}` ({reason})")
+    lines += [
+        "",
+        (
+            "Fix the LaTeX of these formulas so MathJax can typeset them, "
+            "keeping what each one says. Change nothing else: the same type, "
+            "wording, fields and image_description."
+        ),
+    ]
     return "\n".join(lines)
 
 
@@ -248,6 +291,30 @@ class StemGenerator:
             card_type=card_type,
             rewrite=_rewrite_request(current, instruction.strip(), card_type),
         )
+
+    async def fix_latex(
+        self,
+        topic: str,
+        current: StemCard,
+        problems: Sequence[LatexProblem],
+        *,
+        temperature: float = 0.3,
+        reasoning_effort: str | None = None,
+    ) -> StemCard:
+        """``current`` with the formulas in ``problems`` fixed, nothing else.
+
+        The type and the diagram it asks for are kept whatever the model says.
+        """
+        fixed = await generate_stem_data(
+            topic=topic,
+            text_service=self._text_service,
+            model=self._text_model,
+            temperature=temperature,
+            reasoning_effort=reasoning_effort,
+            card_type=current.card_type,
+            rewrite=_latex_fix_request(current, problems),
+        )
+        return fixed.model_copy(update={"image_description": current.image_description})
 
     async def generate_image(self, description: str) -> bytes:
         """Generate an image from a description.

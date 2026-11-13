@@ -405,5 +405,9 @@
   "edit.col.description": "含义",
   "preview.template.Card 1": "卡片",
   "preview.mathErr": "MathJax 无法显示这些公式，在 Anki 里也一样：",
-  "preview.mathUnclosed": "没有闭合：检查每个 { 是否都有对应的 }，以及公式是否以 \\) 或 \\] 结尾"
+  "preview.mathUnclosed": "没有闭合：检查每个 { 是否都有对应的 }，以及公式是否以 \\) 或 \\] 结尾",
+  "fix.submit": "让 AI 修复",
+  "fix.hint": "只改这些公式；撤销可以恢复原卡片。",
+  "fix.working": "正在修复公式… {s} 秒",
+  "fix.live": "可以直接在表单里改，或者先应用修改，再点“让 AI 修复”。"
 }

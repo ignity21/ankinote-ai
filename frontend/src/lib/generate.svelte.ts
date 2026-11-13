@@ -21,6 +21,7 @@ import {
   type FormRow,
   type FormValues,
   type Kind,
+  type MathError,
   type SavedNote,
   type StemType,
 } from "./api";
@@ -133,6 +134,8 @@ export class Row {
   editing = $state<Editing | null>(null);
   /** Set while the model rewrites the note; when it started. */
   rewriting = $state(0);
+  /** The rewrite under way only fixes the formulas the preview couldn't show. */
+  fixing = $state(false);
   undoing = $state(false);
   /** A rewrite or undo that didn't happen; the note is as it was. */
   changeFailure = $state<Failure | null>(null);
@@ -327,19 +330,31 @@ class Session {
 
   /** STEM: have the model rewrite the selected note. False if it didn't. */
   async rewrite(row: Row, instruction: string, cardType?: StemType): Promise<boolean> {
+    return this.#remake(row, false, (id) => api.rewriteDraft(id, instruction.trim(), cardType));
+  }
+
+  /** STEM: have the model fix just the formulas the preview reported. */
+  async fixLatex(row: Row, errors: MathError[]): Promise<boolean> {
+    if (!errors.length) return false;
+    return this.#remake(row, true, (id) => api.fixLatex(id, errors));
+  }
+
+  async #remake(row: Row, fixing: boolean, call: (id: string) => Promise<DraftNote>): Promise<boolean> {
     const note = row.note;
     if (!note || note.kind !== "stem" || !row.saveable || row.busy || row.editing) return false;
     row.rewriting = Date.now();
+    row.fixing = fixing;
     row.changeFailure = null;
     this.#tick();
     try {
-      this.#replace(row, await api.rewriteDraft(note.id, instruction.trim(), cardType));
+      this.#replace(row, await call(note.id));
       return true;
     } catch (error) {
       row.changeFailure = describe(error, "rewrite");
       return false;
     } finally {
       row.rewriting = 0;
+      row.fixing = false;
       this.#tick();
     }
   }

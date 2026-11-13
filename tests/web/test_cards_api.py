@@ -782,6 +782,48 @@ async def test_a_failed_rewrite_leaves_the_draft_as_it_was(
     assert undo.status_code == 409
 
 
+async def test_fix_latex_sends_the_preview_errors_and_can_be_undone(
+    api: httpx.AsyncClient, models: dict[str, Any]
+) -> None:
+    await _gemini(api)
+    note = await _stem(api, models, answer={**NEWTON, "latex": r"F = m\frac{dv}{dt"})
+    url = f"/api/cards/drafts/{note['id']}"
+    models["answer"] = json.dumps({**NEWTON, "latex": r"F = m\frac{dv}{dt}"})
+
+    fixed = await api.post(
+        f"{url}/fix-latex",
+        json={"errors": [{"tex": r"\[F = m\frac{dv}{dt", "message": ""}]},
+    )
+
+    assert fixed.status_code == 200, fixed.text
+    out = fixed.json()
+    assert out["id"] == note["id"] and out["variant"] == "formula"
+    assert r"\[F = m\frac{dv}{dt}\]" in out["cards"][0]["back"]
+    assert "<img" in out["cards"][0]["back"]  # the diagram stays
+    assert "- `\\[F = m\\frac{dv}{dt` (not closed" in models["prompts"][-1]
+    assert out["can_undo"] is True
+    undone = await api.post(f"{url}/undo")
+    assert _unversioned(undone.json()) == _unversioned(note)
+
+
+async def test_fix_latex_needs_errors_and_a_stem_draft(
+    api: httpx.AsyncClient, models: dict[str, Any]
+) -> None:
+    await _gemini(api)
+    word = (await api.post("/api/cards/word", json={"text": "moon"})).json()["notes"][0]
+    stem = await _stem(api, models)
+    errors = {"errors": [{"tex": "x", "message": "m"}]}
+
+    none = await api.post(
+        f"/api/cards/drafts/{stem['id']}/fix-latex", json={"errors": []}
+    )
+    other = await api.post(f"/api/cards/drafts/{word['id']}/fix-latex", json=errors)
+
+    assert none.status_code == 422
+    assert other.status_code == 409
+    assert other.json()["detail"]["code"] == "not_supported"
+
+
 async def test_an_edit_can_be_undone_for_every_kind(
     api: httpx.AsyncClient, models: dict[str, Any]
 ) -> None:

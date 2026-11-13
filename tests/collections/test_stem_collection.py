@@ -14,7 +14,7 @@ from ankinote.collections.stem.collection import (
     StemCollection,
     StemMedia,
 )
-from ankinote.collections.stem.generator import StemGenerator
+from ankinote.collections.stem.generator import LatexProblem, StemGenerator
 from ankinote.collections.stem.models import (
     CARD_ADAPTER,
     NOTE_FIELDS,
@@ -541,6 +541,40 @@ async def test_rewrite_keeps_the_diagram_while_its_description_stays():
     assert images.prompts == []
     user = collection._generator._text_service.calls[0]["messages"][1]["content"]
     assert "Turn it into" not in user
+
+
+async def test_fix_latex_sends_the_broken_formulas_and_keeps_type_and_diagram():
+    broken = CARDS[1].model_copy(
+        update={"latex": r"F = m\frac{dv}{dt", "image_description": "a diagram"}
+    )
+    # The model fixes the formula but also rewords the diagram it wants.
+    fixed = broken.model_copy(
+        update={"latex": r"F = m\frac{dv}{dt}", "image_description": "another"}
+    )
+    images = _RecordingImageService()
+    collection = _draft_collection(fixed.model_dump_json(), images)
+    card = StemCardData(model=broken, media=StemMedia(image=b"old"))
+
+    result = await collection.fix_latex(
+        card,
+        "newton",
+        [
+            LatexProblem(r"\frac{dv}{dt", ""),
+            LatexProblem(r"\foo", "Undefined control sequence \\foo"),
+        ],
+    )
+
+    assert result.model.latex == r"F = m\frac{dv}{dt}"
+    assert result.model.card_type == CardType.FORMULA
+    assert result.model.image_description == "a diagram"
+    assert result.media.image == b"old" and images.prompts == []
+    [call] = collection._generator._text_service.calls
+    system, user = call["messages"]
+    assert "FormulaModel" in system["content"]
+    assert r"\frac{dv}{dt" in user["content"]
+    assert "Undefined control sequence \\foo" in user["content"]
+    assert "not closed" in user["content"]
+    assert "Change nothing else" in user["content"]
 
 
 def _saving_anki(found: dict[str, int]) -> SimpleNamespace:

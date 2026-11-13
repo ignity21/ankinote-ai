@@ -240,6 +240,9 @@ export const api = {
   /** STEM: the model rewrites the card as `instruction` asks, maybe as another type. */
   rewriteDraft: (id: string, instruction: string, card_type?: StemType) =>
     request<DraftNote>("POST", `/api/cards/drafts/${id}/rewrite`, { instruction, card_type }),
+  /** STEM: the model fixes only the formulas the preview couldn't typeset. */
+  fixLatex: (id: string, errors: MathError[]) =>
+    request<DraftNote>("POST", `/api/cards/drafts/${id}/fix-latex`, { errors: errors.slice(0, 20) }),
   undoDraft: (id: string) => request<DraftNote>("POST", `/api/cards/drafts/${id}/undo`),
   saveDraft: (id: string) => request<SavedNote>("POST", `/api/cards/drafts/${id}/save`),
 };

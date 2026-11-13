@@ -33,8 +33,8 @@ Generate → MathJax preview → live edit → rewrite with an instruction → s
 on `feat/1.0`; see the design language's Generate page notes. Decided to
 leave for later:
 
-- **Fix LaTeX**: when the preview reports a broken formula, a button that
-  sends the field and MathJax's message to the text model. Next step.
+- **Fix LaTeX**: shipped 2026-11-13 ("Fix with AI" under the preview's
+  formula errors; not yet inside the live editor).
 - Per-field rewrite / simplify buttons: only if users keep wanting to change
   one field.
 - "Explain" (tutoring) is out of scope for 1.0: it makes the app a learning

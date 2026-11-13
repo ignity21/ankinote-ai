@@ -10,14 +10,15 @@ pictures, STEM cards diagrams, the rest audio. A draft's fields can be edited
 before saving (``EDIT_FORM`` per kind says which); an edited example sentence
 gets new audio, nothing else is remade. A STEM draft can also be previewed
 with unapplied edits (live editing) and rewritten by the model from an
-instruction. Edits and rewrites can be undone.
+instruction, or have just its broken formulas fixed. Edits and rewrites can
+be undone.
 """
 
 import asyncio
 import json
 import uuid
 from collections import OrderedDict
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import Any, Literal, Protocol
@@ -41,6 +42,7 @@ from ankinote.collections.sentence import templates as sentence_templates
 from ankinote.collections.sentence.collection import SentenceCollection
 from ankinote.collections.stem import templates as stem_templates
 from ankinote.collections.stem.collection import StemCollection
+from ankinote.collections.stem.generator import LatexProblem
 from ankinote.collections.stem.models import EDIT_FORMS as STEM_FORMS
 from ankinote.collections.stem.models import CardType
 from ankinote.collections.word import models as word_models
@@ -482,19 +484,74 @@ async def rewrite_draft(draft_id: str, body: RewriteIn) -> dict:
     neither an instruction nor another type; generation errors as for
     generating.
     """
-    draft = _draft(draft_id)
-    if draft.kind != "stem":
-        raise _fail(409, "not_supported")
+    draft = _stem_draft(draft_id)
     instruction = body.instruction.strip()
     card_type = body.card_type if body.card_type != _card_type(draft) else None
     if not instruction and card_type is None:
         raise _fail(422, "blank", "instruction")
+
+    async def rewrite(collection: StemCollection) -> Any:
+        card = await collection.rewrite_card(
+            draft.card, draft.source, instruction, card_type=card_type
+        )
+        if not draft.image:
+            card.media.gaps[:] = []
+        return card
+
+    return await _remake(draft, rewrite, draws=draft.image)
+
+
+class LatexErrorIn(BaseModel):
+    tex: str = Field(max_length=2000)
+    message: str = Field(
+        default="", max_length=500, description="Empty: the formula isn't closed."
+    )
+
+
+class FixLatexIn(BaseModel):
+    errors: list[LatexErrorIn] = Field(min_length=1, max_length=20)
+
+
+@router.post("/drafts/{draft_id}/fix-latex")
+async def fix_latex(draft_id: str, body: FixLatexIn) -> dict:
+    """Have the text model fix the formulas the preview couldn't typeset.
+
+    ``errors`` are what the preview reported. Only those formulas should
+    change; the type and diagram stay. Undo brings the card back. Errors as
+    for a rewrite.
+    """
+    draft = _stem_draft(draft_id)
+    problems = [LatexProblem(e.tex, e.message) for e in body.errors]
+    return await _remake(
+        draft,
+        lambda collection: collection.fix_latex(draft.card, draft.source, problems),
+        draws=False,
+    )
+
+
+def _stem_draft(draft_id: str) -> Draft:
+    draft = _draft(draft_id)
+    if draft.kind != "stem":
+        raise _fail(409, "not_supported")
+    return draft
+
+
+async def _remake(
+    draft: Draft,
+    make: Callable[[StemCollection], Awaitable[Any]],
+    *,
+    draws: bool,
+) -> dict:
+    """Replace a STEM draft's card with what the text model ``make``s of it.
+
+    ``draws``: whether the collection gets the image model, for a new diagram.
+    """
     settings = load_settings()
     apply_env(settings)
     text = active_profile(settings, "text")
     if text is None:
         raise _fail(409, "no_text_model")
-    image = active_profile(settings, "image") if draft.image else None
+    image = active_profile(settings, "image") if draws else None
     collection = _for_draft(
         draft,
         text_model=text.model,
@@ -506,16 +563,12 @@ async def rewrite_draft(draft_id: str, body: RewriteIn) -> dict:
     assert isinstance(collection, StemCollection)
     try:
         async with asyncio.timeout(STEM_TIMEOUT_SECONDS):
-            card = await collection.rewrite_card(
-                draft.card, draft.source, instruction, card_type=card_type
-            )
+            card = await make(collection)
     except TimeoutError as exc:
         raise _fail(504, "timeout") from exc
     except Exception as exc:
         logger.warning("STEM rewrite failed: {}", exc)
         raise _generation_error(exc, text.model) from exc
-    if not draft.image:
-        card.media.gaps[:] = []
     draft.replace(collection, card)
     return _draft_out(draft, _for_draft(draft))
 

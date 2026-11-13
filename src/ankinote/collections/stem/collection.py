@@ -1,7 +1,7 @@
 """STEM collection management for Anki."""
 
 import hashlib
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Self
 
@@ -12,7 +12,7 @@ from ankinote.services.ai import ImageGenerationService, TextGenerationService
 from ankinote.services.anki import AnkiCollectionClient, TemplateUpsert
 from ankinote.services.anki_batch import anki_write_batch
 
-from .generator import StemGenerator
+from .generator import LatexProblem, StemGenerator
 from .models import (
     NOTE_FIELDS,
     CardType,
@@ -329,6 +329,15 @@ class StemCollection:
             reasoning_effort=self._reasoning_effort,
         )
         return StemCardData(model=model, media=await self._diagram(model, card))
+
+    async def fix_latex(
+        self, card: StemCardData, topic: str, problems: Sequence[LatexProblem]
+    ) -> StemCardData:
+        """``card`` with the formulas the preview couldn't show fixed by the model."""
+        model = await self._generator.fix_latex(
+            topic, card.model, problems, reasoning_effort=self._reasoning_effort
+        )
+        return StemCardData(model=model, media=card.media)
 
     async def revise_card(self, card: StemCardData, model: StemCard) -> StemCardData:
         """``card`` with edited fields; edits never touch the diagram."""

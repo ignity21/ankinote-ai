@@ -58,6 +58,15 @@
     }
   }
 
+  /** The formulas the shown note's preview reported, if there are any to fix. */
+  const fixable = $derived(
+    note?.kind === "stem" && !editing && math.id === note.id ? math.errors : [],
+  );
+
+  function fixMath() {
+    if (row && fixable.length) void session.fixLatex(row, fixable);
+  }
+
   function changeFailureText(r: Row): string {
     const f = r.changeFailure;
     if (!f) return "";
@@ -169,13 +178,15 @@
       session.edit(row);
     } else if (event.key === "u" && row?.note?.can_undo) {
       void session.undo(row);
+    } else if (event.key === "f" && fixable.length) {
+      fixMath();
     }
   }
 </script>
 
 <svelte:window onkeydown={onKey} />
 
-{#snippet mathList(errors: MathError[])}
+{#snippet mathList(errors: MathError[], fixable: boolean)}
   {#if errors.length}
     <div class="math-errors" role="alert">
       <p>{t("preview.mathErr")}</p>
@@ -184,6 +195,16 @@
           <li><code>{error.tex}</code> — {error.message || t("preview.mathUnclosed")}</li>
         {/each}
       </ul>
+      {#if fixable && row}
+        <div class="fix">
+          <button class="secondary small" onclick={() => fixMath()} disabled={row.busy}>
+            {t("fix.submit")} <kbd class="hint">F</kbd>
+          </button>
+          <span class="note">{t("fix.hint")}</span>
+        </div>
+      {:else if !fixable}
+        <p class="note">{t("fix.live")}</p>
+      {/if}
     </div>
   {/if}
 {/snippet}
@@ -385,7 +406,7 @@
               {t("edit.livePaused", { error: editErrorText(editing.note.form, editing.liveFailure) })}
             </p>
           {/if}
-          {@render mathList(liveMath)}
+          {@render mathList(liveMath, false)}
           <CardPreview
             note={editing.note}
             cards={editing.live ?? editing.note.cards}
@@ -413,9 +434,11 @@
           </ul>
         {/if}
         {#if row.rewriting}
-          <p class="mono busy" role="status">{t("rewrite.working", { s: rewriteSeconds(row) })}</p>
+          <p class="mono busy" role="status">
+            {t(row.fixing ? "fix.working" : "rewrite.working", { s: rewriteSeconds(row) })}
+          </p>
         {/if}
-        {#if math.id === note.id}{@render mathList(math.errors)}{/if}
+        {#if math.id === note.id && !row.rewriting}{@render mathList(math.errors, row.saveable)}{/if}
         <div class="framed" class:dim={!!row.rewriting}>
           <CardPreview {note} onmath={(errors) => (math = { id: note.id, errors })} />
         </div>
@@ -974,6 +997,18 @@
     font-family: var(--mono);
     font-size: 13px;
     overflow-wrap: anywhere;
+  }
+
+  .math-errors > .note {
+    margin-top: 8px;
+  }
+
+  .fix {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    margin-top: 10px;
   }
 
   .rewrite {
