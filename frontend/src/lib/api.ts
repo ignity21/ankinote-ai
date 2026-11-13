@@ -98,12 +98,31 @@ export type AnkiStatus = {
   local_cards: number | null;
 };
 
+/** How one of ankinote's note types stands in Anki. */
 export type NoteTypeItem = {
   key: string;
   name: string;
   deck: string;
   state: "synced" | "update" | "missing";
+  deck_exists: boolean;
+  /** What setting it up would add or change. */
+  missing_fields: string[];
+  missing_templates: string[];
+  css_differs: boolean;
+  /** Only from setting it up. */
   result?: "created" | "updated" | "unchanged";
+};
+
+/** One of ankinote's note types as this release defines it; no Anki needed. */
+export type NoteTypeInfo = {
+  key: string;
+  kind: Kind;
+  stem_type: StemType | null;
+  /** The Anki note type's name. */
+  name: string;
+  deck: string;
+  fields: string[];
+  templates: string[];
 };
 
 export type Languages = {
@@ -227,6 +246,10 @@ export const api = {
     request<AnkiStatus>("POST", "/api/anki/full-sync", { direction }),
   noteTypes: () => request<NoteTypeItem[]>("GET", "/api/anki/note-types"),
   prepareNoteTypes: () => request<NoteTypeItem[]>("POST", "/api/anki/note-types"),
+  prepareNoteType: (key: string) => request<NoteTypeItem>("POST", `/api/anki/note-types/${key}`),
+  noteTypeInfo: () => request<NoteTypeInfo[]>("GET", "/api/note-types"),
+  /** A made-up note of this type, rendered like a draft. */
+  noteTypeSample: (key: string) => request<DraftNote>("GET", `/api/note-types/${key}/sample`),
   generate: (
     kind: Kind,
     text: string,

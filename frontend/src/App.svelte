@@ -4,6 +4,7 @@
   import { router } from "./lib/router.svelte";
   import "./lib/theme.svelte";
   import Generate from "./routes/Generate.svelte";
+  import NoteTypes from "./routes/NoteTypes.svelte";
   import Placeholder from "./routes/Placeholder.svelte";
   import Settings from "./routes/Settings.svelte";
   import Wizard from "./routes/Wizard.svelte";
@@ -27,8 +28,8 @@
       <Generate />
     {:else if router.path === "/wizard"}
       <Wizard />
-    {:else if router.path === "/notetypes"}
-      <Placeholder title={t("nav.notetypes")} message={t("page.soon")} />
+    {:else if router.path === "/notetypes" || router.path.startsWith("/notetypes/")}
+      <NoteTypes />
     {:else if router.path === "/settings" || router.path.startsWith("/settings/")}
       <Settings />
     {:else}

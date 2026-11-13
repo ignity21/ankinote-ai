@@ -215,7 +215,7 @@ example the gradient in `.card`).
 3. Settings: `card_theme_light` and `card_theme_dark`, chosen independently.
    `load_card_style` composes the light palette under `body` and the dark one
    under `body.nightMode`.
-4. Card Types page: a theme picker with a live preview; applying it goes
+4. Note types page: a theme picker with a live preview; applying it goes
    through the existing note-type sync, which already detects CSS drift.
 5. Scope limit: palettes and fonts only. No layout variants, no in-app CSS
    editor; users who want more can edit the note type in Anki.

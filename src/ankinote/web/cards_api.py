@@ -54,6 +54,7 @@ from ankinote.services.ai import (
     ImageGenerationService,
     LiteLLMTextService,
     TextGenerationService,
+    TextMessage,
 )
 from ankinote.services.anki import AnkiCollectionClient
 from ankinote.services.anki_factory import create_anki_client, get_shared_runtime
@@ -380,6 +381,52 @@ async def generate(kind: Kind, body: GenerateIn) -> dict:
         _keep(draft)
         notes.append(_draft_out(draft, _for_draft(draft)))
     return {"notes": notes}
+
+
+class _FixedAnswer:
+    """A text model that always gives the same answer: sample notes."""
+
+    def __init__(self, answer: str) -> None:
+        self._answer = answer
+
+    async def generate_text(
+        self,
+        *,
+        model: str,
+        messages: Sequence[TextMessage],
+        temperature: float,
+        reasoning_effort: str | None = None,
+    ) -> str:
+        return self._answer
+
+
+async def sample_note(
+    kind: Kind, source: str, answer: Any, card_type: CardType | None = None
+) -> dict:
+    """A note made from a fixed model ``answer``, shaped like a draft but not kept.
+
+    It goes through the same parsing and field formatting as a generated note,
+    with no audio or pictures, and never touches Anki.
+    """
+    collection = _build(
+        kind,
+        None,
+        native=Language.CHINESE_S,
+        target=Language.ENGLISH,
+        text_service=_FixedAnswer(json.dumps(answer)),
+        card_type=card_type,
+    )
+    card = (await collection.generate_cards(source))[0]
+    draft = Draft(
+        id=f"sample-{kind}-{card_type or ''}".rstrip("-"),
+        kind=kind,
+        native=Language.CHINESE_S,
+        target=Language.ENGLISH,
+        card=card,
+        fields=collection.note_fields(card),
+        files={},
+    )
+    return _draft_out(draft, collection)
 
 
 def _timeout(kind: Kind) -> int:

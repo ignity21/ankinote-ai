@@ -191,6 +191,26 @@ Leaving a section drops its unsaved changes. Settings shows the saved
 languages as they are; only the wizard guesses the native language from
 the browser. "Run the setup wizard again" sits under the list.
 
+## Note types
+
+Built 2026-11-13: ankinote's seven note types (Word, Phrase, Sentence, and
+STEM Concept / Formula / Procedure / Worked example) listed on the left
+(a strip of chips on a phone), each at `/notetypes/<key>`, `↑`/`↓` to
+move. Each row shows how the type stands in Anki: `✓` up to date, `!` needs
+an update (fields or card templates missing, styling changed, or its deck
+gone), `+` not created. The selected type shows the Anki name and deck, what
+an update would change in words ("Adds cards: … Each existing note gets them
+too", "Updates the styling: every card of this type changes look"), and
+Create / Update in Anki with "Existing notes, cards and review history are
+kept." "Set up all N" and "Check again" sit under the list; Anki's state is
+read on every visit, since it can change in Anki itself. Below the status, a
+sample card: a made-up English note for a Chinese speaker run through the
+real parsing and field formatting (`web/samples.py`), shown in the same
+preview frame as Generate, so it shows what the note type looks like even
+while Anki isn't connected. Fields and card templates are listed beside it,
+the ones an update would add outlined. Phase 3's card theme picker belongs
+on this page.
+
 ## First-run wizard
 
 Five steps. Desktop and tablet show a step list on the left (done steps can

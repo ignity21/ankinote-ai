@@ -15,6 +15,6 @@ export function sectionFor(code: string): Section | null {
   if (["no_text_model", "auth", "billing", "model_not_found", "audio_not_set_up", "not_set_up"].includes(code)) {
     return "models";
   }
-  if (["write_blocked", "not_open"].includes(code)) return "anki";
+  if (["write_blocked", "not_open", "unreachable", "not_ankiconnect"].includes(code)) return "anki";
   return null;
 }

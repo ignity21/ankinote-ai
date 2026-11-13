@@ -19,8 +19,12 @@ from loguru import logger
 from pydantic import BaseModel
 
 from ankinote.config import envs
-from ankinote.note_types import build_specs, load_status
-from ankinote.services.anki import AnkiConnectError, AnkiTransportError
+from ankinote.note_types import NoteTypeSpec, TypeStatus, build_specs, load_status
+from ankinote.services.anki import (
+    AnkiCollectionClient,
+    AnkiConnectError,
+    AnkiTransportError,
+)
 from ankinote.services.anki_batch import anki_write_batch
 from ankinote.services.anki_factory import (
     COLLECTION_BACKEND,
@@ -349,13 +353,32 @@ def note_type_error(exc: Exception) -> HTTPException:
     return _fail(500, "error", type(exc).__name__)
 
 
-def _note_type_out(spec, state: str) -> dict:
+def _note_type_out(status: TypeStatus) -> dict:
+    """How one note type stands in Anki, and what setting it up would change."""
+    spec = status.spec
     return {
         "key": spec.key,
         "name": spec.notetype_name,
         "deck": spec.deck_name,
-        "state": state,
+        "state": status.state,
+        "deck_exists": status.deck_exists,
+        "missing_fields": status.missing_fields,
+        "missing_templates": status.missing_templates,
+        "css_differs": status.css_differs,
     }
+
+
+_RESULT = {"missing": "created", "update": "updated", "synced": "unchanged"}
+
+
+async def _set_up(client: AnkiCollectionClient, spec: NoteTypeSpec) -> dict:
+    before = await load_status(client, spec)
+    await spec.sync(client)
+    item = _note_type_out(await load_status(client, spec))
+    # A missing deck alone doesn't make a type "update"; setting up adds it.
+    readded_deck = before.state == "synced" and not before.deck_exists
+    item["result"] = "updated" if readded_deck else _RESULT[before.state]
+    return item
 
 
 async def ready_backend() -> None:
@@ -373,7 +396,7 @@ async def note_types() -> list[dict]:
         statuses = [await load_status(client, spec) for spec in build_specs()]
     except Exception as exc:
         raise note_type_error(exc) from exc
-    return [_note_type_out(s.spec, s.state) for s in statuses]
+    return [_note_type_out(s) for s in statuses]
 
 
 @router.post("/note-types")
@@ -385,18 +408,25 @@ async def prepare_note_types() -> list[dict]:
     so existing notes, cards and review history stay as they are.
     """
     await ready_backend()
-    result = {"missing": "created", "update": "updated", "synced": "unchanged"}
-    out = []
     try:
         client = create_anki_client()
         # One batch: one AnkiWeb sync after all the note types, not one each.
         async with anki_write_batch(client):
-            for spec in build_specs():
-                before = await load_status(client, spec)
-                await spec.sync(client)
-                item = _note_type_out(spec, "synced")
-                item["result"] = result[before.state]
-                out.append(item)
+            return [await _set_up(client, spec) for spec in build_specs()]
     except Exception as exc:
         raise note_type_error(exc) from exc
-    return out
+
+
+@router.post("/note-types/{key}")
+async def prepare_note_type(key: str) -> dict:
+    """Create or update one note type and its deck, as above."""
+    spec = next((s for s in build_specs() if s.key == key), None)
+    if spec is None:
+        raise _fail(404, "unknown", key)
+    await ready_backend()
+    try:
+        client = create_anki_client()
+        async with anki_write_batch(client):
+            return await _set_up(client, spec)
+    except Exception as exc:
+        raise note_type_error(exc) from exc
