@@ -539,7 +539,23 @@ def _parse_profiles(raw: dict) -> dict[str, ProviderProfile]:
 
 def default_collection_path() -> str:
     """Suggested path for a first-time ``collection`` backend switch."""
-    return str(Path.home() / ".local" / "share" / "ankinote" / "collection.anki2")
+    xdg_data = os.environ.get("XDG_DATA_HOME")
+    base = Path(xdg_data) if xdg_data else Path.home() / ".local" / "share"
+    return str(base / "ankinote" / "collection.anki2")
+
+
+def saved_anki_backend() -> str:
+    """The Anki backend stored in ``settings.json``, or ``""`` if none was saved.
+
+    Unlike :func:`load_settings`, this doesn't fall back to ``ANKI_BACKEND``,
+    so it tells "the user chose AnkiConnect" apart from "nobody chose yet".
+    """
+    try:
+        data = json.loads(_get_config_path().read_text(encoding="utf-8"))
+    except OSError, ValueError:
+        return ""
+    backend = data.get("anki_backend") if isinstance(data, dict) else None
+    return backend if isinstance(backend, str) else ""
 
 
 def _settings_from_current_shape(data: dict) -> Settings:

@@ -16,7 +16,7 @@ def _isolate_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     happens to have on disk. Tests that need a specific value still set it
     themselves via ``monkeypatch``, which applies on top of this baseline.
     """
-    monkeypatch.setattr(envs, "ANKI_BACKEND", "connect")
+    monkeypatch.setattr(envs, "ANKI_BACKEND", "")
     monkeypatch.setattr(envs, "ANKI_COLLECTION_PATH", "")
     monkeypatch.setattr(envs, "ANKI_CONNECT_URL", "http://localhost:8765")
     monkeypatch.setattr(envs, "ANKIWEB_USERNAME", "")

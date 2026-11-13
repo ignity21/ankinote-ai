@@ -114,6 +114,16 @@ GCP project.
    live test → choose Anki connection (headless + AnkiWeb login by default) →
    set native/target language → create note types → generate one sample card.
    Reuses the existing Settings handlers; no new persistence.
+   Step 2 (Connect Anki) built 2026-11-13 on `feat/1.0`: `web/anki_api.py`
+   (`GET /api/anki`, `PUT /api/anki/backend`, `POST /api/anki/login|logout|
+   sync|full-sync`, `GET|POST /api/anki/note-types`) over the existing
+   collection runtime, sync service and driver; the note-type specs moved to
+   `ankinote/note_types.py`. The web app now opens the Anki backend in its
+   lifespan. `anki` became a core dependency (the `headless` extra stays as
+   an alias), and `ANKI_BACKEND` defaults to blank (still acts as `connect`)
+   so saving settings no longer records AnkiConnect as a choice nobody made.
+   Tested with fake AnkiWeb responses only; a real AnkiWeb login is still to
+   be tried.
 5. **CLI/TUI parity.** The TUI's TTS menu and `apply_env` follow the new TTS
    setting so both front ends keep sharing `settings.json`.
 

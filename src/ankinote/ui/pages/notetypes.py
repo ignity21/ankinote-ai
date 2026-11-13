@@ -14,226 +14,38 @@ upserts Anki note-type/deck definitions through the collections' public
 """
 
 import asyncio
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Literal
 
 from nicegui import ui
 
 from ankinote.app import Application
-from ankinote.collections.phrase import PhraseCollection
-from ankinote.collections.phrase.models import PhraseNoteType
-from ankinote.collections.phrase.templates import (
-    load_card_style as _phrase_style,
-)
-from ankinote.collections.sentence import SentenceCollection
-from ankinote.collections.sentence.models import SentenceNoteType
-from ankinote.collections.sentence.templates import (
-    load_card_style as _sentence_style,
-)
-from ankinote.collections.stem import StemCollection
-from ankinote.collections.stem.models import NOTE_FIELDS, CardType, note_type_name
-from ankinote.collections.stem.templates import (
-    load_card_style as _stem_style,
-)
-from ankinote.collections.word import WordCollection
-from ankinote.collections.word.models import WordNoteType
-from ankinote.collections.word.templates import (
-    load_card_style as _word_style,
-)
-from ankinote.consts import Language
-from ankinote.services.ai import LiteLLMTextService
-from ankinote.services.anki import AnkiCollectionClient
+from ankinote.note_types import NoteTypeSpec, TypeStatus, build_specs, load_status
 from ankinote.services.anki_factory import create_anki_client
 from ankinote.settings import load_settings
 from ankinote.ui.i18n import set_locale, t
 from ankinote.ui.pages.word import format_error
 from ankinote.ui.sync import save_allowed, sync_feedback
 
-# ---------------------------------------------------------------------------
-# Note type specs — one per collection. These mirror the definitions that the
-# collections themselves write into Anki (fields, template names, styling), so
-# the status computed here matches what ``ensure_in_anki()`` will actually do.
-# ---------------------------------------------------------------------------
-
 
 @dataclass(frozen=True, slots=True)
-class NoteTypeSpec:
-    """Static description of one note type ankinote can create/update."""
-
-    key: str
+class _Look:
     icon: str  # Material icon name
     accent: str  # CSS hex accent for this card type
     title: str  # Learner-facing name, e.g. "Word cards"
-    notetype_name: str  # Anki model name
-    deck_name: str  # Anki deck path
-    fields: tuple[str, ...]
-    templates: tuple[str, ...]
-    css: str
-    sync: Callable[[AnkiCollectionClient], Awaitable[None]]
-
-    @property
-    def css_size_kb(self) -> str:
-        """Human-readable size of the note type styling."""
-        return f"{len(self.css.encode()) / 1024:.1f} KB"
 
 
-@dataclass(frozen=True, slots=True)
-class TypeStatus:
-    """Live status of one note type as seen in Anki."""
-
-    spec: NoteTypeSpec
-    exists: bool
-    deck_exists: bool
-    missing_fields: list[str]
-    missing_templates: list[str]
-    css_differs: bool
-
-    @property
-    def state(self) -> str:
-        """One of ``synced``, ``update`` or ``missing``."""
-        if not self.exists:
-            return "missing"
-        if self.missing_fields or self.missing_templates or self.css_differs:
-            return "update"
-        return "synced"
+_LOOKS = {
+    "word": _Look("translate", "#2563eb", "Word cards"),
+    "phrase": _Look("chat_bubble_outline", "#6366f1", "Phrase & idiom cards"),
+    "sentence": _Look("subject", "#0d9488", "Sentence cards"),
+}
 
 
-def _field_names(note_type) -> tuple[str, ...]:
-    return tuple(field.name for field in note_type.__dataclass_fields__.values())
-
-
-def _build_specs() -> list[NoteTypeSpec]:
-    """Assemble the fixed set of note types managed by ankinote."""
-
-    def sync_word(notetype_name: str, deck_name: str):
-        async def _sync(client: AnkiCollectionClient) -> None:
-            collection = WordCollection(
-                client,
-                native_language=Language.CHINESE_S,
-                target_language=Language.ENGLISH,
-                notetype_name=notetype_name,
-                deck_name=deck_name,
-                text_model="",
-                text_service=LiteLLMTextService(),
-                image_service=None,
-            )
-            await collection.ensure_in_anki()
-
-        return _sync
-
-    def sync_language(clazz, notetype_name: str, deck_name: str):
-        async def _sync(client: AnkiCollectionClient) -> None:
-            collection = clazz(
-                client,
-                native_language=Language.CHINESE_S,
-                target_language=Language.ENGLISH,
-                notetype_name=notetype_name,
-                deck_name=deck_name,
-                text_model="",
-                text_service=LiteLLMTextService(),
-            )
-            await collection.ensure_in_anki()
-
-        return _sync
-
-    def sync_stem(card_type: CardType):
-        async def _sync(client: AnkiCollectionClient) -> None:
-            collection = StemCollection(
-                client,
-                card_type=card_type,
-                text_model="",
-                text_service=LiteLLMTextService(),
-            )
-            await collection.ensure_in_anki()
-
-        return _sync
-
-    return [
-        NoteTypeSpec(
-            key="word",
-            icon="translate",
-            accent="#2563eb",
-            title="Word cards",
-            notetype_name="AINote Word V2",
-            deck_name="AINote::Words",
-            fields=_field_names(WordNoteType),
-            templates=("Recognition", "Recall", "Spelling"),
-            css=_word_style(),
-            sync=sync_word("AINote Word V2", "AINote::Words"),
-        ),
-        NoteTypeSpec(
-            key="phrase",
-            icon="chat_bubble_outline",
-            accent="#6366f1",
-            title="Phrase & idiom cards",
-            notetype_name="AINote Phrase V2",
-            deck_name="AINote::Phrases",
-            fields=_field_names(PhraseNoteType),
-            templates=("Recognition", "Recall"),
-            css=_phrase_style(),
-            sync=sync_language(PhraseCollection, "AINote Phrase V2", "AINote::Phrases"),
-        ),
-        NoteTypeSpec(
-            key="sentence",
-            icon="subject",
-            accent="#0d9488",
-            title="Sentence cards",
-            notetype_name="AINote Sentence V2",
-            deck_name="AINote::Sentences",
-            fields=_field_names(SentenceNoteType),
-            templates=("Production",),
-            css=_sentence_style(),
-            sync=sync_language(
-                SentenceCollection, "AINote Sentence V2", "AINote::Sentences"
-            ),
-        ),
-        *[
-            NoteTypeSpec(
-                key=f"stem_{kind}",
-                icon="science",
-                accent="#7c3aed",
-                title=f"STEM {kind.title()} cards",
-                notetype_name=note_type_name(kind),
-                deck_name="AINote::STEM",
-                fields=NOTE_FIELDS[kind],
-                templates=("Card 1",),
-                css=_stem_style(),
-                sync=sync_stem(kind),
-            )
-            for kind in CardType
-        ],
-    ]
-
-
-# ---------------------------------------------------------------------------
-# Anki introspection
-# ---------------------------------------------------------------------------
-
-
-async def _load_status(client: AnkiCollectionClient, spec: NoteTypeSpec) -> TypeStatus:
-    """Compute one note type's live status from AnkiConnect."""
-    model = await client.models.get(spec.notetype_name)
-    deck_exists = await client.decks.exists(spec.deck_name)
-    if model is None:
-        return TypeStatus(
-            spec=spec,
-            exists=False,
-            deck_exists=deck_exists,
-            missing_fields=[],
-            missing_templates=[],
-            css_differs=False,
-        )
-
-    existing_fields = {f.name for f in model.fields}
-    existing_templates = {t.name for t in model.templates}
-    return TypeStatus(
-        spec=spec,
-        exists=True,
-        deck_exists=deck_exists,
-        missing_fields=[f for f in spec.fields if f not in existing_fields],
-        missing_templates=[t for t in spec.templates if t not in existing_templates],
-        css_differs=model.css != spec.css,
+def _look(spec: NoteTypeSpec) -> _Look:
+    kind = spec.key.removeprefix("stem_")
+    return _LOOKS.get(spec.key) or _Look(
+        "science", "#7c3aed", f"STEM {kind.title()} cards"
     )
 
 
@@ -504,14 +316,16 @@ def _inject_styles() -> None:
 
 def _render_header(status: TypeStatus, busy: bool, on_sync) -> None:
     """The type mark, name/deck summary, sync status stamp, and action button."""
-    spec, state, accent = status.spec, status.state, status.spec.accent
+    spec, state = status.spec, status.state
+    look = _look(spec)
+    accent = look.accent
     with ui.element("div").classes("nt-card-head"):
         with ui.element("div").classes("nt-type-mark"):
             with ui.element("div").classes("nt-icon").style(f"--nt-accent: {accent}"):
-                ui.icon(spec.icon).classes("text-[1.35rem]")
+                ui.icon(look.icon).classes("text-[1.35rem]")
             with ui.column().classes("gap-0"):
                 with ui.row().classes("items-baseline gap-0"):
-                    ui.label(spec.title).classes("nt-title")
+                    ui.label(look.title).classes("nt-title")
                     ui.label(spec.notetype_name).classes("nt-ntname")
                 ui.label(
                     f"{spec.deck_name} · {len(spec.fields)} fields · "
@@ -603,7 +417,7 @@ def _render_panel(status: TypeStatus, busy: bool, on_sync) -> None:
     with (
         ui.element("div")
         .classes("nt-card w-full")
-        .style(f"--nt-accent: {status.spec.accent}")
+        .style(f"--nt-accent: {_look(status.spec).accent}")
     ):
         _render_header(status, busy, on_sync)
         _render_anatomy(status.spec)
@@ -655,7 +469,7 @@ def notetypes_page() -> None:  # noqa: C901 - UI composition
     """Render the Card Types management page."""
     _inject_styles()
     set_locale(load_settings().ui_language)
-    specs = _build_specs()
+    specs = build_specs()
 
     # Mutable state shared by the refreshable workspace below.
     state: dict = {"statuses": None, "error": None, "busy": set()}
@@ -732,7 +546,7 @@ def notetypes_page() -> None:  # noqa: C901 - UI composition
             async with Application():
                 anki_client = create_anki_client()
                 state["statuses"] = [
-                    await _load_status(anki_client, spec) for spec in specs
+                    await load_status(anki_client, spec) for spec in specs
                 ]
         except Exception as exc:
             state["error"] = format_error(exc)
@@ -748,9 +562,9 @@ def notetypes_page() -> None:  # noqa: C901 - UI composition
             async with Application():
                 anki_client = create_anki_client()
                 await spec.sync(anki_client)
-            _notify(f"{spec.title}: {t('notetypes.updated')}", "positive")
+            _notify(f"{_look(spec).title}: {t('notetypes.updated')}", "positive")
         except Exception as exc:
-            _notify(f"{spec.title}: {format_error(exc)}", "negative")
+            _notify(f"{_look(spec).title}: {format_error(exc)}", "negative")
         finally:
             state["busy"].discard(spec.key)
         await _load()  # re-scan so the panel reflects the new state

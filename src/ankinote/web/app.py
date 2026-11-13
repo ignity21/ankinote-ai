@@ -4,6 +4,8 @@ The frontend lives in ``frontend/`` and builds into ``DIST_DIR``. In
 development, run the Vite dev server instead; it proxies ``/api`` here.
 """
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import APIRouter, FastAPI
@@ -11,7 +13,9 @@ from fastapi.responses import FileResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from ankinote import __version__
-from ankinote.web import settings_api
+from ankinote.services.anki_factory import stop_anki_backend
+from ankinote.utils.httpcli import close_session, init_session
+from ankinote.web import anki_api, settings_api
 
 DIST_DIR = Path(__file__).parent / "dist"
 
@@ -41,9 +45,24 @@ def _api() -> APIRouter:
     return router
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # One shared HTTP session (AnkiConnect) and one Anki backend per process.
+    init_session()
+    await anki_api.start_backend()
+    try:
+        yield
+    finally:
+        await stop_anki_backend()
+        await close_session()
+
+
 def create_app(dist_dir: Path = DIST_DIR) -> FastAPI:
-    app = FastAPI(title="ankinote", version=__version__, docs_url="/api/docs")
+    app = FastAPI(
+        title="ankinote", version=__version__, docs_url="/api/docs", lifespan=_lifespan
+    )
     app.include_router(settings_api.router)
+    app.include_router(anki_api.router)
     app.include_router(_api())
 
     index = dist_dir / "index.html"

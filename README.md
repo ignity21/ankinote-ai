@@ -159,7 +159,7 @@ deployments:
 | `ANKINOTE_HOST` / `ANKINOTE_PORT` | `0.0.0.0` / `8080` | Bind address for the web server |
 | `ANKINOTE_SHOW` | `true` | Whether to auto-open a browser tab on start |
 | `ANKINOTE_STORAGE_SECRET` | generated | NiceGUI session-signing key. Generated on first start and kept in `~/.config/ankinote/storage_secret`; set it only to manage the secret yourself |
-| `ANKI_BACKEND` / `ANKI_COLLECTION_PATH` | `connect` / – | Initial backend and collection file, used until a backend is saved on the Settings page (after that, `settings.json` wins) |
+| `ANKI_BACKEND` / `ANKI_COLLECTION_PATH` | unset (acts as `connect`) / – | Initial backend and collection file, used until a backend is saved on the Settings page (after that, `settings.json` wins) |
 | `ANKI_CONNECT_URL` | `http://localhost:8765` | Where AnkiConnect lives (`connect` backend) |
 | `ANKIWEB_USERNAME` / `ANKIWEB_PASSWORD` | – | Configure the `collection` backend's AnkiWeb login externally instead of through the Settings page; overrides a UI login, password never persisted to disk |
 | `XDG_CONFIG_HOME` | `~/.config` | Parent directory of `ankinote/settings.json` |

@@ -17,6 +17,9 @@ classifiers = [
     "Topic :: Education",
 ]
 dependencies = [
+    # Built-in Anki (the recommended setup since 1.0). abi3 wheels only:
+    # glibc >= 2.35 Linux (x86_64/aarch64), macOS 12+, Windows; no sdist.
+    "anki==26.8.1",
     "httpx>=0.28.0",
     "asynciolimiter>=1.2.0",
     "click>=8.2.0",
@@ -58,15 +61,14 @@ artifacts = ["src/ankinote/web/dist/**"]
 artifacts = ["src/ankinote/web/dist/**"]
 
 [project.optional-dependencies]
-# In-process Anki collection backend (ANKI_BACKEND=collection). Ships abi3
-# wheels for Python >=3.10 on glibc Linux / macOS 12+ / Windows.
+# Kept so `ankinote-ai[headless]` (deploy docs, 0.x images) still resolves;
+# anki is a core dependency since 1.0.
 headless = [
     "anki==26.8.1",
 ]
 
 [dependency-groups]
 dev = [
-    "anki==26.8.1",
     "pytest>=8.4.1",
     "pytest-cov>=6.1.1",
     "pytest-mock>=3.15.1",

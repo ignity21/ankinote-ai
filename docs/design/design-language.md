@@ -141,6 +141,15 @@ be revisited); phone shows "Step 2 of 5" with a segmented progress bar.
    hkey and endpoint). After connecting, note types and decks are created
    automatically and the step shows the list with "Your existing cards are
    not changed."
+   Built 2026-11-13: Built-in is preselected unless Anki Desktop was saved
+   before. The first AnkiWeb sync of a fresh collection usually needs a full
+   sync: when Anki offers one direction (the other side is empty) the step
+   explains it and offers a single "Download from AnkiWeb" / "Upload to
+   AnkiWeb" button; when both directions are possible it asks which
+   collection to keep, with nothing preselected, and the button names what
+   gets replaced. A deployment-set AnkiWeb account (`ANKIWEB_USERNAME`)
+   hides the login form. Anki Desktop shows the AnkiConnect setup steps
+   (add-on code `2055492159`) and the address it uses.
 3. **Languages.** Native and target language.
 4. **Appearance** (skippable). Palette swatches and follow system / light /
    dark; the whole app re-themes live.

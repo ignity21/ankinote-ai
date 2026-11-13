@@ -1,6 +1,7 @@
 <script lang="ts">
   import Pane from "../components/Pane.svelte";
   import StepNav from "../components/StepNav.svelte";
+  import AnkiStep from "./wizard/AnkiStep.svelte";
   import ModelStep from "./wizard/ModelStep.svelte";
   import { t, type MessageKey } from "../lib/i18n.svelte";
 
@@ -55,6 +56,8 @@
       <h1>{t(step.key)}</h1>
       {#if current === 0}
         <ModelStep onnext={next} />
+      {:else if current === 1}
+        <AnkiStep onback={back} onnext={next} />
       {:else}
         <p class="empty">{t("page.soon")}</p>
         <StepNav

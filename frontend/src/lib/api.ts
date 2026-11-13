@@ -56,6 +56,56 @@ export type RouteCheck = {
 
 export type ModelList = { models: string[]; code: FailureCode; detail: string };
 
+export type AnkiBackend = "collection" | "connect";
+export type Direction = "upload" | "download";
+
+export type SyncView = {
+  state:
+    | "not_logged_in"
+    | "initializing"
+    | "idle"
+    | "syncing"
+    | "pending"
+    | "needs_full_sync_choice"
+    | "error";
+  initialized: boolean;
+  full_sync_required: boolean;
+  directions: Direction[];
+  /** network, credentials, media, backup, full_sync_required, state_store, driver… */
+  error: string | null;
+  last_success: string | null;
+  result: { collection_ok: boolean; media_ok: boolean } | null;
+};
+
+export type AnkiStatus = {
+  /** The backend in use now. */
+  backend: AnkiBackend;
+  /** What the step preselects: the backend in use, else the recommendation. */
+  choice: AnkiBackend;
+  builtin_available: boolean;
+  connect_url: string;
+  collection_path: string;
+  /** Whether the built-in collection is open. */
+  open: boolean;
+  open_error: { code: string; detail: string } | null;
+  account: string | null;
+  account_managed: boolean;
+  sync: SyncView | null;
+  /** A full upload or download is running. */
+  busy: boolean;
+  writable: boolean;
+  /** Cards in ankinote's collection, only while a full-sync choice is pending. */
+  local_cards: number | null;
+};
+
+export type NoteTypeItem = {
+  key: string;
+  name: string;
+  deck: string;
+  state: "synced" | "update" | "missing";
+  result?: "created" | "updated" | "unchanged";
+};
+
 /** A 422 from the server about one route's draft (unknown provider, missing key…). */
 export class DraftError extends Error {
   constructor(
@@ -67,19 +117,33 @@ export class DraftError extends Error {
   }
 }
 
+/** Any other error reply: `code` says what went wrong (see the endpoint). */
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    readonly detail: string,
+  ) {
+    super(`${status} ${code}`);
+  }
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const response = await fetch(path, {
     method,
     headers: { Accept: "application/json", ...(body ? { "Content-Type": "application/json" } : {}) },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (response.status === 422) {
-    const { detail } = await response.json();
-    if (detail && typeof detail === "object" && "route" in detail) {
+  if (!response.ok) {
+    const { detail } = await response.json().catch(() => ({ detail: null }));
+    if (response.status === 422 && detail && typeof detail === "object" && "route" in detail) {
       throw new DraftError(detail.code, detail.route, detail.message);
     }
+    if (detail && typeof detail === "object" && "code" in detail) {
+      throw new ApiError(response.status, detail.code, detail.detail ?? "");
+    }
+    throw new ApiError(response.status, "error", "");
   }
-  if (!response.ok) throw new Error(`${method} ${path} returned ${response.status}`);
   return (await response.json()) as T;
 }
 
@@ -94,4 +158,15 @@ export const api = {
     request<Record<Route, RouteCheck>>("POST", "/api/models/test", routes),
   listModels: (route: Route, target: RouteIn) =>
     request<ModelList>("POST", "/api/models/list", { route, target }),
+  anki: () => request<AnkiStatus>("GET", "/api/anki"),
+  setAnkiBackend: (backend: AnkiBackend) =>
+    request<AnkiStatus>("PUT", "/api/anki/backend", { backend }),
+  ankiLogin: (email: string, password: string) =>
+    request<AnkiStatus>("POST", "/api/anki/login", { email, password }),
+  ankiLogout: () => request<AnkiStatus>("POST", "/api/anki/logout"),
+  ankiSync: () => request<AnkiStatus>("POST", "/api/anki/sync"),
+  ankiFullSync: (direction: Direction) =>
+    request<AnkiStatus>("POST", "/api/anki/full-sync", { direction }),
+  noteTypes: () => request<NoteTypeItem[]>("GET", "/api/anki/note-types"),
+  prepareNoteTypes: () => request<NoteTypeItem[]>("POST", "/api/anki/note-types"),
 };

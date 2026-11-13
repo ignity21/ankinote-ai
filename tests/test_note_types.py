@@ -1,12 +1,12 @@
-"""Tests for the GUI note-type synchronisation wiring."""
+"""Tests for the note-type specs shared by the web API and the GUI."""
 
 from typing import cast
 
 import pytest
 
+from ankinote import note_types
 from ankinote.collections.stem.models import CardType, note_type_name
 from ankinote.services.anki import AnkiCollectionClient
-from ankinote.ui.pages import notetypes
 
 
 async def test_stem_specs_sync_each_independent_type(monkeypatch):
@@ -19,8 +19,8 @@ async def test_stem_specs_sync_each_independent_type(monkeypatch):
         async def ensure_in_anki(self):
             pass
 
-    monkeypatch.setattr(notetypes, "StemCollection", FakeStemCollection)
-    specs = [spec for spec in notetypes._build_specs() if spec.key.startswith("stem_")]
+    monkeypatch.setattr(note_types, "StemCollection", FakeStemCollection)
+    specs = [spec for spec in note_types.build_specs() if spec.key.startswith("stem_")]
     assert len(specs) == 4
     for spec, kind in zip(specs, CardType, strict=True):
         assert spec.notetype_name == note_type_name(kind)
@@ -44,8 +44,8 @@ async def test_sentence_note_type_sync_uses_only_sentence_dependencies(
         async def ensure_in_anki(self) -> None:
             return None
 
-    monkeypatch.setattr(notetypes, "SentenceCollection", FakeSentenceCollection)
-    spec = next(spec for spec in notetypes._build_specs() if spec.key == "sentence")
+    monkeypatch.setattr(note_types, "SentenceCollection", FakeSentenceCollection)
+    spec = next(spec for spec in note_types.build_specs() if spec.key == "sentence")
 
     await spec.sync(cast(AnkiCollectionClient, object()))
 

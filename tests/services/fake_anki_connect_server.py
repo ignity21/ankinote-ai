@@ -177,6 +177,7 @@ def _store_media_file(col: Any, params: dict[str, Any]) -> str:
 
 
 _ACTIONS: dict[str, Any] = {
+    "version": lambda col, params: 6,
     "modelNames": _model_names,
     "findModelsByName": _find_models_by_name,
     "createModel": _create_model,
