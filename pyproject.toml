@@ -33,6 +33,7 @@ dependencies = [
     "rich>=14.1.0",
     "shortuuid>=1.0.13",
     "uvicorn>=0.52.3",
+    "lameenc>=1.9.0",
 ]
 
 [project.scripts]
@@ -105,6 +106,10 @@ typeCheckingMode = "standard"
 
 [tool.ty.src]
 include = ["src/ankinote"]
+
+[tool.ty.environment]
+# Stubs for dependencies that ship none.
+extra-paths = ["typings"]
 
 [tool.pytest.ini_options]
 minversion = "8.4.1"

@@ -1,5 +1,7 @@
 <script lang="ts">
   import Pane from "../components/Pane.svelte";
+  import StepNav from "../components/StepNav.svelte";
+  import ModelStep from "./wizard/ModelStep.svelte";
   import { t, type MessageKey } from "../lib/i18n.svelte";
 
   const steps: { key: MessageKey; skippable?: boolean }[] = [
@@ -18,6 +20,10 @@
   function next() {
     done = Math.max(done, current + 1);
     if (!last) current += 1;
+  }
+
+  function back() {
+    current -= 1;
   }
 </script>
 
@@ -41,23 +47,24 @@
   </Pane>
 
   <Pane title={t("wizard.title")} area="body">
-    <p class="progress">{t("wizard.stepOf", { n: current + 1, total: steps.length })}</p>
-    <div class="bars" aria-hidden="true">
-      {#each steps as s, i (s.key)}<span class:filled={i <= current}></span>{/each}
-    </div>
-    <h1>{t(step.key)}</h1>
-    <p class="empty">{t("page.soon")}</p>
-    <nav class="nav">
-      <button class="secondary" disabled={current === 0} onclick={() => (current -= 1)}>
-        {t("wizard.back")}
-      </button>
-      {#if step.skippable}
-        <button class="secondary" onclick={next}>{t("wizard.skip")}</button>
+    <div class="body">
+      <p class="progress">{t("wizard.stepOf", { n: current + 1, total: steps.length })}</p>
+      <div class="bars" aria-hidden="true">
+        {#each steps as s, i (s.key)}<span class:filled={i <= current}></span>{/each}
+      </div>
+      <h1>{t(step.key)}</h1>
+      {#if current === 0}
+        <ModelStep onnext={next} />
+      {:else}
+        <p class="empty">{t("page.soon")}</p>
+        <StepNav
+          onback={back}
+          onskip={step.skippable ? next : undefined}
+          onnext={next}
+          {last}
+        />
       {/if}
-      <button class="primary" onclick={next}>
-        {last ? t("wizard.finish") : t("wizard.next")}
-      </button>
-    </nav>
+    </div>
   </Pane>
 </div>
 
@@ -141,19 +148,12 @@
     line-height: 1.3;
   }
 
-  .nav {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 24px;
-    padding-top: 12px;
-    border-top: 1px solid var(--border);
-  }
-
-  .nav button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  /* The pane title overlaps the border, so scroll inside, not on the pane. */
+  .body {
+    height: 100%;
+    overflow-y: auto;
+    margin: -4px -8px 0;
+    padding: 4px 8px 0;
   }
 
   @container app (max-width: 1000px) {

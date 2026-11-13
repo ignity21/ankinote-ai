@@ -219,7 +219,7 @@ reference — most users should start with the Web UI above instead.
 - **Language**: Python 3.14+
 - **Package Manager**: uv
 - **AI/ML**: litellm (OpenAI, Gemini, Claude, DeepSeek, fal.ai, etc.)
-- **TTS**: Google Cloud Text-to-Speech API
+- **TTS**: Gemini, OpenAI, or Google Cloud Text-to-Speech
 - **Image Generation**: OpenAI (gpt-image), Gemini, fal.ai
 - **Anki Integration**: in-process `anki` library with AnkiWeb sync, or AnkiConnect
 - **Card Templates**: HTML + CSS
@@ -231,9 +231,10 @@ reference — most users should start with the Web UI above instead.
 - Image generation (OpenAI gpt-image, Gemini, fal.ai) for card visuals
 - Supports Gemini, GPT, Claude, DeepSeek, Qwen, and more
 
-### Google Cloud TTS
-- High-quality audio generation
-- Multiple voice options
+### Text-to-speech
+- Gemini (same AI Studio key as text and images), OpenAI, or Google Cloud
+  Text-to-Speech (its own Cloud API key, `GOOGLE_TTS_KEY`)
+- A random voice per clip; audio is stored as MP3
 
 ### Anki
 - `collection`: opens the collection in-process and syncs it with AnkiWeb

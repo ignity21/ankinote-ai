@@ -20,7 +20,11 @@ from ankinote.services.ai import (
 )
 from ankinote.services.anki import AnkiCollectionClient
 from ankinote.services.anki_factory import anki_backend_scope, create_anki_client
-from ankinote.services.provider_factory import build_image_service, build_text_service
+from ankinote.services.provider_factory import (
+    build_image_service,
+    build_text_service,
+    speech_service_for,
+)
 from ankinote.settings import ProviderProfile, Settings, load_settings
 
 # ``THINKING_CHOICES`` / ``resolve_thinking`` moved to ``ankinote.services.ai``
@@ -119,6 +123,7 @@ def build_word_collection(
             model=image_model,
         ),
         reasoning_effort=options.reasoning_effort,
+        tts_service=speech_service_for(settings, options.target_language),
     )
 
 
@@ -138,6 +143,7 @@ def build_phrase_collection(
         text_model=_resolve_text_model(options.llm_model, text_profile),
         text_service=build_text_service(text_profile),
         reasoning_effort=options.reasoning_effort,
+        tts_service=speech_service_for(settings, options.target_language),
     )
 
 
@@ -157,6 +163,7 @@ def build_sentence_collection(
         text_model=_resolve_text_model(options.llm_model, text_profile),
         text_service=build_text_service(text_profile),
         reasoning_effort=options.reasoning_effort,
+        tts_service=speech_service_for(settings, options.target_language),
     )
 
 

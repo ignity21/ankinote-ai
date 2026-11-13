@@ -25,6 +25,7 @@ from ankinote.services.ai import (
     LiteLLMImageService,
 )
 from ankinote.services.anki import NoteModel
+from ankinote.services.speech import GeminiSpeechService
 from ankinote.settings import ProviderProfile, Settings, save_settings
 
 
@@ -187,6 +188,30 @@ class TestCollectionBuilders:
         assert collection._native_language is Language.CHINESE_S
         assert collection._target_language is Language.ENGLISH
         assert collection._generator._text_model == "llm-x"
+
+    @pytest.mark.parametrize(
+        "build",
+        [build_word_collection, build_phrase_collection, build_sentence_collection],
+    )
+    def test_collections_speak_through_the_speech_route(self, build):
+        settings = Settings()
+        settings.speech_providers = {
+            "Gemini": ProviderProfile("Gemini", "gemini/tts", "https://g.test", "AIza")
+        }
+        settings.active_speech_provider = "Gemini"
+        save_settings(settings)
+        options_type = (
+            WordCollectionOptions
+            if build is build_word_collection
+            else LanguageCollectionOptions
+        )
+        options = options_type(
+            native_language=Language.CHINESE_S, target_language=Language.ENGLISH
+        )
+
+        collection = build(FakeCollectionClient(), options)
+
+        assert isinstance(collection._tts_service, GeminiSpeechService)
 
 
 class TestResolveThinking:

@@ -60,6 +60,18 @@ GCP project.
    Check current model ids and per-language voice coverage against provider
    docs at implementation time. TTS becomes a profile-style setting like the
    text and image routes instead of a single Google key field.
+   Built 2026-11-13 on `feat/1.0` (`services/speech.py`,
+   `provider_factory.build_speech_service`): Gemini speech goes through the
+   Interactions API (`POST /v1beta/interactions`, random prebuilt voice,
+   `store: false`, language auto-detected); its 24 kHz PCM/WAV is encoded to
+   MP3 with `lameenc` because cards store `.mp3`. OpenAI (and
+   OpenAI-compatible) use `/audio/speech` with `response_format: mp3`. Google
+   Cloud TTS takes the key from its profile. The CLI and the NiceGUI pages
+   pass the active speech route to the collections; with no speech route
+   they fall back to `GOOGLE_TTS_KEY` as 0.x did. Not yet verified against
+   the live Gemini API: the request shape follows the 2026-11 speech guide,
+   and the response parser accepts both the Interactions and the older
+   `generateContent` shapes.
 2. **Graceful degradation.** With only a text key, cards are still created;
    missing image or audio is skipped without an error, and the result panel
    says which capability is not configured. Verify the card templates render
@@ -78,6 +90,26 @@ GCP project.
      the model and points to Settings → Models.
    - No fetching preset updates from a remote server: it would add a network
      dependency and a service to run.
+   Built 2026-11-12 on `feat/1.0`: presets live in
+   `src/ankinote/model_presets.py` (model ids checked against each
+   provider's model page that day; OpenAI's only speech model,
+   `gpt-4o-mini-tts`, is deprecated for 2027-01-06 with no replacement on
+   `/v1/audio/speech` yet). A profile's `preset` field marks it as following;
+   saving a non-recommended model clears it. Settings gained a speech route
+   (`speech_providers`); a 0.x Google Cloud TTS key shows there, but audio
+   generation still reads `GOOGLE_TTS_KEY` until item 1 wires the route in.
+   API: `GET/PATCH /api/settings`, `GET /api/models/providers`,
+   `PUT /api/models`, `POST /api/models/test`, `POST /api/models/list`.
+   Revised 2026-11-13: the wizard recommends only Gemini (one AI Studio key
+   for all three routes; image generation needs billing, which the step says
+   up front). Other providers moved under "Advanced" per route, matching
+   0.x's options: FAL.AI for images and Google Cloud TTS (`Chirp3-HD`, its
+   own Cloud key) for audio were added as presets. Recommended models are the
+   cheapest that make a good card: Gemini `gemini-3.8-flash` /
+   `gemini-3.1-flash-lite-image` / `gemini-3.8-flash-lite-tts`; OpenAI
+   `gpt-6-luna` / `gpt-image-2.6-flare` / `gpt-4o-mini-tts`. The check adds
+   failure codes `billing` (Gemini free-tier zero quota) and `api_disabled`
+   (Google project hasn't enabled the API).
 4. **First-run wizard.** Shown when no provider profile exists: paste key →
    live test → choose Anki connection (headless + AnkiWeb login by default) →
    set native/target language → create note types → generate one sample card.

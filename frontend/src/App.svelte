@@ -6,6 +6,17 @@
   import Generate from "./routes/Generate.svelte";
   import Placeholder from "./routes/Placeholder.svelte";
   import Wizard from "./routes/Wizard.svelte";
+  import { api } from "./lib/api";
+
+  // A fresh install has no working text model yet: start in the wizard.
+  api
+    .settings()
+    .then((s) => {
+      if (s.needs_setup && router.path === "/") router.go("/wizard");
+    })
+    .catch(() => {
+      // The top bar already shows the server as unreachable.
+    });
 </script>
 
 <div class="app">

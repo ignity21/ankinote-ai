@@ -10,6 +10,7 @@ from ankinote.collections.sentence import SentenceCollection
 from ankinote.consts import TARGET_LANGUAGES, Language
 from ankinote.services.ai import LiteLLMTextService
 from ankinote.services.anki_factory import create_anki_client
+from ankinote.services.provider_factory import speech_service_for
 from ankinote.settings import (
     CUSTOM_VENDOR,
     ProviderProfile,
@@ -164,6 +165,7 @@ def sentence_page() -> None:  # noqa: C901 - UI composition
                         anki_client,
                         native_language=Language(native),
                         target_language=Language(target),
+                        tts_service=speech_service_for(settings, Language(target)),
                         text_model=text_profile.model,
                         text_service=text_service,
                     ) as collection:

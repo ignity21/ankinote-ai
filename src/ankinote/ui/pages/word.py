@@ -10,7 +10,11 @@ from ankinote.app import Application
 from ankinote.collections.word import WordCollection
 from ankinote.consts import TARGET_LANGUAGES, Language
 from ankinote.services.anki_factory import create_anki_client
-from ankinote.services.provider_factory import build_image_service, build_text_service
+from ankinote.services.provider_factory import (
+    build_image_service,
+    build_text_service,
+    speech_service_for,
+)
 from ankinote.settings import (
     ProviderProfile,
     apply_env,
@@ -187,6 +191,7 @@ def word_page() -> None:  # noqa: C901 - UI composition
                         client,
                         native_language=Language(native),
                         target_language=Language(target),
+                        tts_service=speech_service_for(settings, Language(target)),
                         text_model=text_profile.model,
                         text_service=text_service,
                         image_service=image_service,

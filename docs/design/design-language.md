@@ -116,14 +116,25 @@ palette / mode / language switches.
 Five steps. Desktop and tablet show a step list on the left (done steps can
 be revisited); phone shows "Step 2 of 5" with a segmented progress bar.
 
-1. **Connect an AI model.** Provider choice (Gemini marked recommended;
-   text-only providers like DeepSeek say up front that cards will have no
-   images or audio), API key, then "Test connection" lists text / image /
-   audio as working or not supported, each with the model it will use and
-   "You can change models any time in Settings → Models." A collapsed
-   "Advanced: choose models" section edits each route's model (and base URL
-   for OpenAI-compatible services); it is the same per-route profile editor
-   Settings uses.
+1. **Connect an AI model.** Recommends one setup: Google Gemini for text,
+   images and audio with a single AI Studio key (decided 2026-11-13). The
+   step explains how to get the key, that image generation needs billing
+   turned on for the key's project (Gemini's free tier draws no images), and
+   that no other APIs or permissions are needed; then the key field and the
+   model each route will use. "Test connection" lists text / image / audio,
+   each with its model and "You can change models any time in Settings →
+   Models." Text is checked with a real one-word request ("Works"); image and
+   audio only against the provider's model list ("Available"), so testing
+   never pays for an image. A Gemini image route that passes says that it
+   still needs billing, since listing can't tell. Next stays disabled until
+   text works. A collapsed "Use another provider, or choose models" section
+   is the per-route editor Settings uses: each route can switch provider
+   (with its own key), model, or be turned off. It offers what 0.x offered
+   plus DeepSeek and the newer speech models: text from Gemini, OpenAI,
+   Claude, DeepSeek or any OpenAI-compatible service; images from Gemini,
+   OpenAI, FAL.AI or OpenAI-compatible; audio from Gemini, OpenAI or Google
+   Cloud TTS. It opens by itself when a saved setup differs from the default,
+   and its intro points users who can't reach Google to DeepSeek.
 2. **Connect Anki.** Built-in Anki with AnkiWeb login (recommended) or Anki
    Desktop via AnkiConnect. The password is used once to log in; only the
    login token AnkiWeb returns is stored (`anki_sync_driver.py` keeps the

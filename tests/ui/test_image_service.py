@@ -134,6 +134,19 @@ def test_build_text_service_passes_builtin_vendor_key_and_base_explicitly() -> N
     assert service._force_openai_route is False
 
 
+def test_build_text_service_strips_v1_from_anthropic_base() -> None:
+    """LiteLLM appends ``/v1/messages`` to an Anthropic ``api_base``, so the
+    stored ``…/v1`` base (needed for listing models) produced ``/v1/v1/messages``."""
+    profile = ProviderProfile(
+        vendor="Anthropic",
+        model="claude-haiku-5-5",
+        base_url=PROVIDERS["Anthropic"]["api_base"],
+        api_key="sk-ant",
+    )
+    service = build_text_service(profile)
+    assert service._api_base == "https://api.anthropic.com"
+
+
 def test_build_text_service_forces_openai_route_for_custom_vendor() -> None:
     profile = ProviderProfile(
         vendor=CUSTOM_VENDOR,

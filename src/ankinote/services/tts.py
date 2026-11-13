@@ -31,19 +31,38 @@ class SpeechSynthesizer(Protocol):
     """Narrow speech synthesis contract used by generators."""
 
     async def synthesize(self, text: str) -> bytes:
-        """Generate speech audio for plain text."""
+        """Generate speech audio (MP3) for plain text."""
+        ...
+
+
+class SpeechService(SpeechSynthesizer, Protocol):
+    """What a collection holds: synthesis plus a cache it warms and clears."""
+
+    async def warmup(self) -> None:
+        """Prepare anything the first synthesis would otherwise wait for."""
+        ...
+
+    def clear_cache(self) -> None:
+        """Drop whatever ``warmup`` cached."""
         ...
 
 
 class GoogleTTSService:
-    def __init__(self, language_code: str = "en-US", model: str = "Chirp3-HD"):
+    def __init__(
+        self,
+        language_code: str = "en-US",
+        model: str = "Chirp3-HD",
+        api_key: str | None = None,
+    ):
         """
         Initialize the Google TTS service with the specified language and model.
 
         Args:
             language_code: BCP-47 language tag (e.g. "en-US", "ja-JP").
             model: Voice model family to filter by (e.g. "Chirp3-HD", "Neural2").
+            api_key: Google Cloud API key; defaults to ``GOOGLE_TTS_KEY``.
         """
+        self._api_key = api_key
         self._tts_cli: TextToSpeechAsyncClient | None = None
         self._lang_code = language_code
         self._model = model
@@ -99,13 +118,14 @@ class GoogleTTSService:
     def _get_client(self) -> TextToSpeechAsyncClient:
         """Create the Google client only when text-to-speech is actually used."""
         if self._tts_cli is None:
-            if not envs.GOOGLE_TTS_KEY:
+            api_key = self._api_key or envs.GOOGLE_TTS_KEY
+            if not api_key:
                 raise RuntimeError(
                     "Google Cloud TTS is not configured. Set GOOGLE_TTS_KEY "
                     "(environment variable, .env, or the Text-to-Speech field "
                     "in Settings) before generating audio."
                 )
-            client_options = ClientOptions(api_key=envs.GOOGLE_TTS_KEY)
+            client_options = ClientOptions(api_key=api_key)
             self._tts_cli = TextToSpeechAsyncClient(client_options=client_options)
         return self._tts_cli
 

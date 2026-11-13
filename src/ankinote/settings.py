@@ -10,6 +10,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from ankinote.config import envs
+from ankinote.model_presets import (
+    CUSTOM_VENDOR,
+    GOOGLE_TTS_VENDOR,
+    PRESETS,
+    ROUTES,
+    Route,
+)
 
 if TYPE_CHECKING:
     import httpx
@@ -56,7 +63,6 @@ PROVIDERS: dict[str, dict] = {
 # third-party OpenAI-compatible API, or a second account on a vendor not in
 # ``PROVIDERS``/``IMAGE_PROVIDERS``. Offered alongside the curated vendors in
 # the "Add provider" dialog for both text and image profiles.
-CUSTOM_VENDOR = "Custom / Other"
 CUSTOM_VENDOR_TEMPLATE: dict = {
     "models": [],
     "env_key": None,
@@ -413,6 +419,10 @@ class ProviderProfile:
     model: str = ""
     base_url: str = ""
     api_key: str = ""
+    # Id of the ``model_presets`` preset this route follows: its model and
+    # base URL are replaced with the preset's current ones on every load.
+    # Empty once the user picks a model of their own.
+    preset: str = ""
 
 
 DEFAULT_TEXT_PROFILE_NAME = "OpenAI"
@@ -461,6 +471,10 @@ class Settings:
         default_factory=_default_image_providers
     )
     active_image_provider: str = DEFAULT_IMAGE_PROFILE_NAME
+    speech_providers: dict[str, ProviderProfile] = field(default_factory=dict)
+    # Empty means no speech route; audio falls back to the Google Cloud TTS
+    # key in ``api_keys`` until the speech providers are wired in.
+    active_speech_provider: str = ""
     image_size: int = 512
     api_keys: dict[str, str] = field(default_factory=dict)
     defaults: DefaultsConfig = field(default_factory=DefaultsConfig)
@@ -516,6 +530,7 @@ def _parse_profiles(raw: dict) -> dict[str, ProviderProfile]:
             model=value.get("model", ""),
             base_url=value.get("base_url", ""),
             api_key=value.get("api_key", ""),
+            preset=value.get("preset", ""),
         )
         for name, value in raw.items()
         if isinstance(name, str) and isinstance(value, dict)
@@ -538,6 +553,12 @@ def _settings_from_current_shape(data: dict) -> Settings:
     """
     text_providers = _parse_profiles(data.get("text_providers", {}))
     image_providers = _parse_profiles(data.get("image_providers", {}))
+    speech_providers = _parse_profiles(data.get("speech_providers", {}))
+    active_speech_provider = data.get("active_speech_provider", "")
+    if "speech_providers" not in data:
+        speech_providers, active_speech_provider = _speech_from_google_key(
+            data.get("api_keys", {})
+        )
     return Settings(
         text_providers=text_providers or _default_text_providers(),
         active_text_provider=data.get("active_text_provider")
@@ -545,6 +566,8 @@ def _settings_from_current_shape(data: dict) -> Settings:
         image_providers=image_providers or _default_image_providers(),
         active_image_provider=data.get("active_image_provider")
         or next(iter(image_providers), DEFAULT_IMAGE_PROFILE_NAME),
+        speech_providers=speech_providers,
+        active_speech_provider=active_speech_provider,
         image_size=data.get("image_size", 512),
         api_keys=data.get("api_keys", {}),
         defaults=DefaultsConfig(**data.get("defaults", {})),
@@ -638,6 +661,8 @@ def _settings_from_legacy_shape(data: dict) -> Settings:
         )
         active_image_provider = old_image_provider
 
+    google_tts = {"GOOGLE_TTS_KEY": old_api_keys.get("GOOGLE_TTS_KEY", "")}
+    speech_providers, active_speech_provider = _speech_from_google_key(google_tts)
     return Settings(
         text_providers=text_providers or _default_text_providers(),
         active_text_provider=active_text_provider
@@ -645,14 +670,75 @@ def _settings_from_legacy_shape(data: dict) -> Settings:
         image_providers=image_providers or _default_image_providers(),
         active_image_provider=active_image_provider
         or next(iter(image_providers), DEFAULT_IMAGE_PROFILE_NAME),
+        speech_providers=speech_providers,
+        active_speech_provider=active_speech_provider,
         image_size=data.get("image_size", 512),
-        api_keys={"GOOGLE_TTS_KEY": old_api_keys.get("GOOGLE_TTS_KEY", "")},
+        api_keys=google_tts,
         defaults=DefaultsConfig(**data.get("defaults", {})),
         ui_language=data.get("ui_language", "en"),
         anki_backend=data.get("anki_backend") or envs.ANKI_BACKEND,
         anki_collection_path=data.get("anki_collection_path")
         or envs.ANKI_COLLECTION_PATH,
     )
+
+
+def _speech_from_google_key(
+    api_keys: dict,
+) -> tuple[dict[str, ProviderProfile], str]:
+    """Turn a 0.x Google Cloud TTS key into the speech route.
+
+    The key also stays in ``api_keys`` so a 0.x install sharing this file
+    keeps working.
+    """
+    key = api_keys.get("GOOGLE_TTS_KEY", "")
+    if not key:
+        return {}, ""
+    name = "Google Cloud"
+    profile = ProviderProfile(vendor=GOOGLE_TTS_VENDOR, model="Chirp3-HD", api_key=key)
+    return {name: profile}, name
+
+
+def route_profiles(settings: Settings, route: Route) -> dict[str, ProviderProfile]:
+    """The profile dict that serves ``route``."""
+    return {
+        "text": settings.text_providers,
+        "image": settings.image_providers,
+        "speech": settings.speech_providers,
+    }[route]
+
+
+def active_profile(settings: Settings, route: Route) -> ProviderProfile | None:
+    """The profile ``route`` uses, or ``None`` when the route is off."""
+    name = {
+        "text": settings.active_text_provider,
+        "image": settings.active_image_provider,
+        "speech": settings.active_speech_provider,
+    }[route]
+    return route_profiles(settings, route).get(name)
+
+
+def set_active_profile(settings: Settings, route: Route, name: str) -> None:
+    """Point ``route`` at the profile ``name`` (empty turns the route off)."""
+    if route == "text":
+        settings.active_text_provider = name
+    elif route == "image":
+        settings.active_image_provider = name
+    else:
+        settings.active_speech_provider = name
+
+
+def follow_presets(settings: Settings) -> Settings:
+    """Move every preset-following route to its preset's current model."""
+    for route in ROUTES:
+        for profile in route_profiles(settings, route).values():
+            preset = PRESETS.get(profile.preset)
+            model = preset.models.get(route) if preset else None
+            if preset is None or model is None:
+                profile.preset = ""
+                continue
+            profile.model = model
+            profile.base_url = preset.base_url
+    return settings
 
 
 def load_settings() -> Settings:
@@ -671,7 +757,7 @@ def load_settings() -> Settings:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         if "text_providers" in data:
-            return _settings_from_current_shape(data)
+            return follow_presets(_settings_from_current_shape(data))
         return _settings_from_legacy_shape(data)
     except json.JSONDecodeError, KeyError, TypeError:
         return Settings()
@@ -690,6 +776,10 @@ def save_settings(settings: Settings) -> None:
             name: asdict(profile) for name, profile in settings.image_providers.items()
         },
         "active_image_provider": settings.active_image_provider,
+        "speech_providers": {
+            name: asdict(profile) for name, profile in settings.speech_providers.items()
+        },
+        "active_speech_provider": settings.active_speech_provider,
         "image_size": settings.image_size,
         "api_keys": settings.api_keys,
         "defaults": asdict(settings.defaults),

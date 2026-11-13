@@ -13,7 +13,7 @@ from ankinote.consts import RUBY_ANNOTATION_LANGUAGES, Language
 from ankinote.services.ai import DISABLE_REASONING, TextGenerationService
 from ankinote.services.anki import AnkiCollectionClient, TemplateUpsert
 from ankinote.services.anki_batch import anki_write_batch
-from ankinote.services.tts import TTS_LANG_CODES, GoogleTTSService
+from ankinote.services.tts import TTS_LANG_CODES, GoogleTTSService, SpeechService
 
 from .generator import PhraseGenerator, PhraseMediaFiles
 from .models import Example, PhraseModel, PhraseNoteType, Sense
@@ -50,6 +50,7 @@ class PhraseCollection:
         text_model: str,
         text_service: TextGenerationService,
         reasoning_effort: str | None = DISABLE_REASONING,
+        tts_service: SpeechService | None = None,
     ) -> None:
         """Initialize PhraseCollection."""
         self.notetype_name = notetype_name
@@ -58,7 +59,9 @@ class PhraseCollection:
         self._target_language = target_language
         self._anki_client = anki_client
         self._reasoning_effort = reasoning_effort
-        self._tts_service = GoogleTTSService(TTS_LANG_CODES[target_language])
+        self._tts_service: SpeechService = tts_service or GoogleTTSService(
+            TTS_LANG_CODES[target_language]
+        )
         self._generator = PhraseGenerator(
             self._tts_service,
             text_service=text_service,

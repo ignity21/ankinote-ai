@@ -42,6 +42,7 @@ export const i18n = new I18n();
 
 /** Translate `key`, replacing `{name}` placeholders from `vars`. */
 export function t(key: MessageKey, vars: Record<string, string | number> = {}): string {
-  const text: string = catalogs[i18n.locale][key] ?? en[key];
+  // A missing key shows itself rather than crashing the page.
+  const text: string = catalogs[i18n.locale][key] ?? en[key] ?? key;
   return text.replace(/\{(\w+)\}/g, (_, name: string) => String(vars[name] ?? `{${name}}`));
 }

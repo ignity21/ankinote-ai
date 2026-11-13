@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from ankinote import __version__
+from ankinote.web import settings_api
 
 DIST_DIR = Path(__file__).parent / "dist"
 
@@ -42,6 +43,7 @@ def _api() -> APIRouter:
 
 def create_app(dist_dir: Path = DIST_DIR) -> FastAPI:
     app = FastAPI(title="ankinote", version=__version__, docs_url="/api/docs")
+    app.include_router(settings_api.router)
     app.include_router(_api())
 
     index = dist_dir / "index.html"
