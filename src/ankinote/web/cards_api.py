@@ -4,34 +4,47 @@ Generating doesn't touch Anki: the result is kept as a draft (note fields
 plus media, in memory, newest ``_DRAFT_LIMIT``) that the preview renders and
 ``save`` writes. A draft outlives a failed save, so a blocked AnkiWeb sync or
 a closed Anki Desktop never costs a regeneration.
+
+Words, phrases and sentences share this flow; only words have pictures.
 """
 
 import asyncio
 import json
 import uuid
 from collections import OrderedDict
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import Literal
+from typing import Any, Literal, Protocol
 
 from fastapi import APIRouter, HTTPException, Response
 from loguru import logger
 from pydantic import BaseModel, Field, ValidationError
 
 from ankinote.card_render import media_path, render_card
-from ankinote.collections.common import MediaGap
-from ankinote.collections.word.collection import WordCardData, WordCollection
-from ankinote.collections.word.templates import load_card_style
+from ankinote.collections.common import MediaGap, strip_phonetic_annotations
+from ankinote.collections.phrase import templates as phrase_templates
+from ankinote.collections.phrase.collection import PhraseCollection
+from ankinote.collections.sentence import templates as sentence_templates
+from ankinote.collections.sentence.collection import SentenceCollection
+from ankinote.collections.word import templates as word_templates
+from ankinote.collections.word.collection import WordCollection
 from ankinote.consts import Language
 from ankinote.services import model_check
-from ankinote.services.ai import LiteLLMTextService
+from ankinote.services.ai import (
+    ImageGenerationService,
+    LiteLLMTextService,
+    TextGenerationService,
+)
+from ankinote.services.anki import AnkiCollectionClient
 from ankinote.services.anki_factory import create_anki_client, get_shared_runtime
 from ankinote.services.provider_factory import (
     build_image_service,
     build_text_service,
     optional_speech_service,
 )
-from ankinote.settings import Settings, active_profile, apply_env, load_settings
+from ankinote.services.tts import SpeechService
+from ankinote.settings import active_profile, apply_env, load_settings
 from ankinote.web import anki_api
 
 # A first card with an image takes 20–60 s; past this something is stuck.
@@ -39,13 +52,85 @@ GENERATE_TIMEOUT_SECONDS = 180
 _DRAFT_LIMIT = 50
 _MEDIA_TYPES = {".mp3": "audio/mpeg", ".png": "image/png"}
 
+Kind = Literal["word", "phrase", "sentence"]
+
+
+class CardCollection(Protocol):
+    """What the word, phrase and sentence collections have in common."""
+
+    notetype_name: str
+    deck_name: str
+
+    def card_templates(self) -> list[dict[str, str]]: ...
+
+    async def generate_cards(self, text: str, /) -> Sequence[Any]: ...
+
+    def note_fields(self, card: Any, /) -> dict[str, str]: ...
+
+    def media_files(self, card: Any, /) -> dict[str, bytes]: ...
+
+    async def save_card(self, card: Any, /) -> int: ...
+
+    async def ensure_in_anki(self) -> None: ...
+
+
+_STYLES: dict[Kind, Callable[[], str]] = {
+    "word": word_templates.load_card_style,
+    "phrase": phrase_templates.load_card_style,
+    "sentence": sentence_templates.load_card_style,
+}
+
+
+def _build(
+    kind: Kind,
+    client: AnkiCollectionClient | None,
+    *,
+    native: Language,
+    target: Language,
+    text_model: str = "",
+    text_service: TextGenerationService | None = None,
+    image_service: ImageGenerationService | None = None,
+    tts: SpeechService | None = None,
+) -> CardCollection:
+    """The collection for ``kind``; without services it can only save."""
+    text_service = text_service or LiteLLMTextService()
+    if kind == "word":
+        return WordCollection(
+            client,
+            native_language=native,
+            target_language=target,
+            text_model=text_model,
+            text_service=text_service,
+            image_service=image_service,
+            tts_service=tts,
+        )
+    cls = PhraseCollection if kind == "phrase" else SentenceCollection
+    return cls(
+        client,
+        native_language=native,
+        target_language=target,
+        text_model=text_model,
+        text_service=text_service,
+        tts_service=tts,
+    )
+
+
+def _headline(kind: Kind, card: Any) -> tuple[str, str]:
+    """What the note is about, and which variant (a word's part of speech)."""
+    model = card.model
+    if kind == "word":
+        return model.lemma, model.part_of_speech
+    text = model.phrase if kind == "phrase" else model.target_sentence
+    return strip_phonetic_annotations(text), ""
+
 
 @dataclass
 class Draft:
     id: str
+    kind: Kind
     native: Language
     target: Language
-    card: WordCardData
+    card: Any
     fields: dict[str, str]
     files: dict[str, bytes]
     note_id: int | None = None
@@ -57,7 +142,8 @@ _drafts: OrderedDict[str, Draft] = OrderedDict()
 class GenerateIn(BaseModel):
     text: str = Field(min_length=1, max_length=300)
     image: bool | None = Field(
-        default=None, description="Omit to follow the saved default."
+        default=None,
+        description="Words only. Omit to follow the saved default.",
     )
     audio: bool = Field(
         default=True, description="False leaves audio out, without a gap."
@@ -66,33 +152,6 @@ class GenerateIn(BaseModel):
 
 def _fail(status: int, code: str, detail: str = "") -> HTTPException:
     return HTTPException(status_code=status, detail={"code": code, "detail": detail})
-
-
-def _collection(
-    settings: Settings,
-    native: Language,
-    target: Language,
-    *,
-    want_image: bool,
-    want_audio: bool,
-) -> tuple[WordCollection, list[MediaGap]]:
-    text = active_profile(settings, "text")
-    if text is None:
-        raise _fail(409, "no_text_model")
-    image = active_profile(settings, "image") if want_image else None
-    gaps = [MediaGap("image", "not_set_up")] if want_image and image is None else []
-    collection = WordCollection(
-        None,
-        native_language=native,
-        target_language=target,
-        text_model=text.model,
-        text_service=build_text_service(text),
-        image_service=build_image_service(image, image_size=settings.image_size)
-        if image
-        else None,
-        tts_service=optional_speech_service(settings, target) if want_audio else None,
-    )
-    return collection, gaps
 
 
 def _generation_error(exc: Exception, model: str) -> HTTPException:
@@ -108,7 +167,7 @@ def _media_prefix(draft_id: str) -> str:
     return f"/api/cards/drafts/{draft_id}/media"
 
 
-def _draft_out(draft: Draft, collection: WordCollection) -> dict:
+def _draft_out(draft: Draft, collection: CardCollection) -> dict:
     prefix = _media_prefix(draft.id)
 
     def url(name: str) -> str:
@@ -121,17 +180,19 @@ def _draft_out(draft: Draft, collection: WordCollection) -> dict:
             template["Back"], draft.fields, front_side=front, answer=True, media_url=url
         )
         cards.append({"name": template["Name"], "front": front, "back": back})
+    headword, variant = _headline(draft.kind, draft.card)
     return {
         "id": draft.id,
-        "lemma": draft.card.model.lemma,
-        "part_of_speech": draft.card.model.part_of_speech,
+        "kind": draft.kind,
+        "headword": headword,
+        "variant": variant,
         "note_type": collection.notetype_name,
         "deck": collection.deck_name,
         "gaps": [
             {"kind": g.kind, "reason": g.reason, "detail": g.detail}
             for g in draft.card.media.gaps
         ],
-        "css": load_card_style(),
+        "css": _STYLES[draft.kind](),
         "cards": cards,
         "note_id": draft.note_id,
     }
@@ -147,15 +208,31 @@ router = APIRouter(prefix="/api/cards")
 
 
 @router.post("/{kind}")
-async def generate(kind: Literal["word"], body: GenerateIn) -> dict:
+async def generate(kind: Kind, body: GenerateIn) -> dict:
     """Generate the notes for ``text`` (a word: one per part of speech), unsaved."""
     settings = load_settings()
     apply_env(settings)
     native = Language(settings.defaults.native_language)
     target = Language(settings.defaults.target_language)
-    want_image = settings.defaults.generate_image if body.image is None else body.image
-    collection, gaps = _collection(
-        settings, native, target, want_image=want_image, want_audio=body.audio
+    text = active_profile(settings, "text")
+    if text is None:
+        raise _fail(409, "no_text_model")
+    want_image = kind == "word" and (
+        settings.defaults.generate_image if body.image is None else body.image
+    )
+    image = active_profile(settings, "image") if want_image else None
+    gaps = [MediaGap("image", "not_set_up")] if want_image and image is None else []
+    collection = _build(
+        kind,
+        None,
+        native=native,
+        target=target,
+        text_model=text.model,
+        text_service=build_text_service(text),
+        image_service=build_image_service(image, image_size=settings.image_size)
+        if image
+        else None,
+        tts=optional_speech_service(settings, target) if body.audio else None,
     )
     try:
         async with asyncio.timeout(GENERATE_TIMEOUT_SECONDS):
@@ -163,9 +240,8 @@ async def generate(kind: Literal["word"], body: GenerateIn) -> dict:
     except TimeoutError as exc:
         raise _fail(504, "timeout") from exc
     except Exception as exc:
-        logger.warning("Word generation failed: {}", exc)
-        text = active_profile(settings, "text")
-        raise _generation_error(exc, text.model if text else "") from exc
+        logger.warning("{} generation failed: {}", kind.capitalize(), exc)
+        raise _generation_error(exc, text.model) from exc
     if not cards:
         raise _fail(502, "bad_output", "no notes")
 
@@ -177,6 +253,7 @@ async def generate(kind: Literal["word"], body: GenerateIn) -> dict:
         card.media.gaps[:0] = gaps
         draft = Draft(
             id=uuid.uuid4().hex,
+            kind=kind,
             native=native,
             target=target,
             card=card,
@@ -213,14 +290,8 @@ async def save_draft(draft_id: str) -> dict:
     await anki_api.ready_backend()
     try:
         client = create_anki_client()
-        collection = WordCollection(
-            client,
-            native_language=draft.native,
-            target_language=draft.target,
-            # Saving generates nothing.
-            text_model="",
-            text_service=LiteLLMTextService(),
-            image_service=None,
+        collection = _build(
+            draft.kind, client, native=draft.native, target=draft.target
         )
         if not await client.models.exists(collection.notetype_name):
             await collection.ensure_in_anki()

@@ -276,3 +276,80 @@ class TestSentenceGenerator:
 
         assert media.sentence_audio == b"audio:This is a test."
         assert synth.calls == ["This is a test."]
+
+
+def _take_off() -> PhraseModel:
+    return PhraseModel(
+        phrase="take off",
+        difficulty="B1",
+        core_meaning={"target_text": "to leave the ground", "native_text": "起飞"},
+        supporting_meanings=[],
+        examples=[
+            PhraseExample(
+                sentence="The plane takes off.",
+                translation="飞机起飞。",
+                highlights=["takes off"],
+            )
+        ],
+        usage_pattern=None,
+        production_hint=None,
+        confusions=[],
+        etymology_or_memory=None,
+        associations=[],
+    )
+
+
+class TestPhraseAndSentenceDegrade:
+    """Phrase and sentence cards are made without audio, like word cards."""
+
+    @pytest.mark.asyncio
+    async def test_phrase_without_speech_has_no_audio(self):
+        generator = PhraseGenerator(
+            tts_service=None, text_service=FakeTextService(), text_model="m"
+        )
+
+        media = await generator.generate_media(_take_off(), Language.ENGLISH)
+
+        assert media.phrase_audio is None
+        assert media.example_audios == []
+        assert media.gaps == [MediaGap("audio", "not_set_up")]
+
+    @pytest.mark.asyncio
+    async def test_phrase_with_failing_speech_drops_all_audio(self):
+        generator = PhraseGenerator(
+            tts_service=FailingSpeechSynthesizer(fail_on="The plane takes off."),
+            text_service=FakeTextService(),
+            text_model="m",
+        )
+
+        media = await generator.generate_media(_take_off(), Language.ENGLISH)
+
+        assert media.phrase_audio is None
+        assert media.example_audios == []
+        assert media.gaps == [MediaGap("audio", "failed", "quota exceeded")]
+
+    @pytest.mark.asyncio
+    async def test_sentence_without_speech_has_no_audio(self):
+        generator = SentenceGenerator(
+            tts_service=None, text_service=FakeTextService(), text_model="m"
+        )
+        model = SentenceModel(target_sentence="Hi.", native_sentence="你好。")
+
+        media = await generator.generate_media(model, Language.ENGLISH)
+
+        assert media.sentence_audio is None
+        assert media.gaps == [MediaGap("audio", "not_set_up")]
+
+    @pytest.mark.asyncio
+    async def test_sentence_with_failing_speech_says_why(self):
+        generator = SentenceGenerator(
+            tts_service=FailingSpeechSynthesizer(fail_on="Hi."),
+            text_service=FakeTextService(),
+            text_model="m",
+        )
+        model = SentenceModel(target_sentence="Hi.", native_sentence="你好。")
+
+        media = await generator.generate_media(model, Language.ENGLISH)
+
+        assert media.sentence_audio is None
+        assert media.gaps == [MediaGap("audio", "failed", "quota exceeded")]

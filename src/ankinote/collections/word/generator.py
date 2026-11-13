@@ -12,9 +12,9 @@ from loguru import logger
 from ankinote.collections.common import (
     MediaGap,
     create_prompt_loader,
-    strip_phonetic_annotations,
+    synthesize_all,
 )
-from ankinote.consts import RUBY_ANNOTATION_LANGUAGES, Language
+from ankinote.consts import Language
 from ankinote.services.ai import (
     DISABLE_REASONING,
     ImageGenerationService,
@@ -207,7 +207,7 @@ class WordGenerator:
             *(example.sentence for example in word_model.examples),
         ]
         (audios, audio_gaps), (images, image_gaps) = await asyncio.gather(
-            self._generate_audios(texts, target_lang),
+            synthesize_all(self._tts_service, texts, target_lang),
             self._generate_images(word_model),
         )
         logger.success(
@@ -220,26 +220,6 @@ class WordGenerator:
             images=images,
             gaps=[*audio_gaps, *image_gaps],
         )
-
-    async def _generate_audios(
-        self, texts: list[str], target_lang: Language
-    ) -> tuple[list[bytes], list[MediaGap]]:
-        """Audio for every text, or none (an example button with no sound is worse)."""
-        tts = self._tts_service
-        if tts is None:
-            return [], [MediaGap("audio", "not_set_up")]
-        if target_lang in RUBY_ANNOTATION_LANGUAGES:
-            texts = [strip_phonetic_annotations(text) for text in texts]
-        results = await asyncio.gather(
-            *(tts.synthesize(text) for text in texts), return_exceptions=True
-        )
-        for result in results:
-            if isinstance(result, BaseException):
-                if not isinstance(result, Exception):
-                    raise result
-                logger.warning(f"Speech failed, card made without audio: {result}")
-                return [], [MediaGap("audio", "failed", str(result))]
-        return cast(list[bytes], results), []
 
     async def _generate_images(
         self, word_model: WordModel

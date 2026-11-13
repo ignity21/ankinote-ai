@@ -84,7 +84,7 @@
           <div class="pos" role="radiogroup" aria-label={t("first.pos")}>
             {#each card.notes as n, i (n.id)}
               <button role="radio" aria-checked={card.selected === i} class:on={card.selected === i} onclick={() => (card.selected = i)}>
-                {n.part_of_speech}
+                {n.variant}
               </button>
             {/each}
           </div>
@@ -114,7 +114,7 @@
       {#if note && !card.generating}
         {#if card.saved}
           <div class="saved" role="status">
-            <p><span class="ok" aria-hidden="true">✓</span> {t("first.saved", { word: note.lemma, deck: card.saved.deck })}</p>
+            <p><span class="ok" aria-hidden="true">✓</span> {t("first.saved", { word: note.headword, deck: card.saved.deck })}</p>
             <p class="note">{syncText(card.saved)}</p>
           </div>
         {:else}

@@ -13,7 +13,7 @@ from ankinote.consts import RUBY_ANNOTATION_LANGUAGES, Language
 from ankinote.services.ai import DISABLE_REASONING, TextGenerationService
 from ankinote.services.anki import AnkiCollectionClient, TemplateUpsert
 from ankinote.services.anki_batch import anki_write_batch
-from ankinote.services.tts import TTS_LANG_CODES, GoogleTTSService, SpeechService
+from ankinote.services.tts import SpeechService
 
 from .generator import PhraseGenerator, PhraseMediaFiles
 from .models import Example, PhraseModel, PhraseNoteType, Sense
@@ -32,16 +32,16 @@ class PhraseCardData:
 class MediaReferences:
     """References to media files stored in Anki."""
 
-    phrase_audio: str  # Filename: "phrase_uuid.mp3"
-    example_audios: list[str]  # Filenames: ["phrase_ex0_uuid.mp3", ...]
+    phrase_audio: str | None  # Filename: "<hash>.mp3"; None without audio
+    example_audios: list[str]  # Filenames: ["<hash>_ex0.mp3", ...]
 
 
 class PhraseCollection:
-    """Manages phrase / idiom / sentence notes in Anki (V2)."""
+    """Manages phrase / idiom notes in Anki (V2)."""
 
     def __init__(
         self,
-        anki_client: AnkiCollectionClient,
+        anki_client: AnkiCollectionClient | None,
         *,
         native_language: Language,
         target_language: Language,
@@ -52,16 +52,14 @@ class PhraseCollection:
         reasoning_effort: str | None = DISABLE_REASONING,
         tts_service: SpeechService | None = None,
     ) -> None:
-        """Initialize PhraseCollection."""
         self.notetype_name = notetype_name
         self.deck_name = deck_name
         self._native_language = native_language
         self._target_language = target_language
         self._anki_client = anki_client
         self._reasoning_effort = reasoning_effort
-        self._tts_service: SpeechService = tts_service or GoogleTTSService(
-            TTS_LANG_CODES[target_language]
-        )
+        # None: cards are made without audio.
+        self._tts_service = tts_service
         self._generator = PhraseGenerator(
             self._tts_service,
             text_service=text_service,
@@ -72,35 +70,16 @@ class PhraseCollection:
         else:
             self._convert_target_lang_text = lambda value: value
 
-    async def __aenter__(self) -> Self:
-        """Async context manager entry: ensure note type and deck exist."""
-        await self._tts_service.warmup()
-        await self._ensure_note_type_exists()
-        await self._ensure_deck_exists()
-        return self
+    @property
+    def _anki(self) -> AnkiCollectionClient:
+        if self._anki_client is None:
+            raise RuntimeError("This phrase collection was built without Anki")
+        return self._anki_client
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Async context manager exit: clean up TTS service."""
-        self._tts_service.clear_cache()
-
-    async def ensure_in_anki(self) -> None:
-        """Create or update this note type and its deck in Anki.
-
-        Idempotent equivalent of the CLI ``init`` command: creates the note
-        type with the current fields, templates and styling when missing, or
-        refreshes templates, styling and missing fields when it already exists,
-        then ensures the deck is present. Does not start TTS or LLM services,
-        so it is safe to call from the GUI setup flow.
-        """
-        async with anki_write_batch(self._anki_client):
-            await self._ensure_note_type_exists()
-            await self._ensure_deck_exists()
-
-    async def _ensure_note_type_exists(self) -> None:
-        """Ensure the note type exists in Anki, create or update it."""
-        fields = [field.name for field in dataclasses.fields(PhraseNoteType)]
-        css = load_card_style()
-        templates = [
+    @staticmethod
+    def card_templates() -> list[dict[str, str]]:
+        """The note type's card templates, as Anki stores them."""
+        return [
             {
                 "Name": "Recognition",
                 "Front": load_template("front.html"),
@@ -112,9 +91,41 @@ class PhraseCollection:
                 "Back": load_template("reverse_back.html"),
             },
         ]
-        exists = await self._anki_client.models.exists(self.notetype_name)
+
+    async def __aenter__(self) -> Self:
+        """Async context manager entry: ensure note type and deck exist."""
+        if self._tts_service is not None:
+            await self._tts_service.warmup()
+        await self._ensure_note_type_exists()
+        await self._ensure_deck_exists()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Async context manager exit: clean up TTS service."""
+        if self._tts_service is not None:
+            self._tts_service.clear_cache()
+
+    async def ensure_in_anki(self) -> None:
+        """Create or update this note type and its deck in Anki.
+
+        Idempotent equivalent of the CLI ``init`` command: creates the note
+        type with the current fields, templates and styling when missing, or
+        refreshes templates, styling and missing fields when it already exists,
+        then ensures the deck is present. Does not start TTS or LLM services,
+        so it is safe to call from the GUI setup flow.
+        """
+        async with anki_write_batch(self._anki):
+            await self._ensure_note_type_exists()
+            await self._ensure_deck_exists()
+
+    async def _ensure_note_type_exists(self) -> None:
+        """Ensure the note type exists in Anki, create or update it."""
+        fields = [field.name for field in dataclasses.fields(PhraseNoteType)]
+        css = load_card_style()
+        templates = self.card_templates()
+        exists = await self._anki.models.exists(self.notetype_name)
         if not exists:
-            await self._anki_client.models.create(
+            await self._anki.models.create(
                 model_name=self.notetype_name,
                 fields=fields,
                 templates=templates,
@@ -125,8 +136,8 @@ class PhraseCollection:
             return
 
         # Ensure new fields (e.g. target_language) are added for existing note types
-        await self._anki_client.models.ensure_fields(self.notetype_name, fields)
-        await self._anki_client.models.update_templates(
+        await self._anki.models.ensure_fields(self.notetype_name, fields)
+        await self._anki.models.update_templates(
             self.notetype_name,
             [
                 TemplateUpsert(
@@ -137,12 +148,12 @@ class PhraseCollection:
                 for template in templates
             ],
         )
-        await self._anki_client.models.update_styling(self.notetype_name, css)
+        await self._anki.models.update_styling(self.notetype_name, css)
         logger.success(f"Updated note type: {self.notetype_name}")
 
     async def _ensure_deck_exists(self) -> int:
         """Ensure the deck exists in Anki, create it if it doesn't."""
-        deck_id = await self._anki_client.decks.create(self.deck_name)
+        deck_id = await self._anki.decks.create(self.deck_name)
         logger.success(f"Ensured deck exists: {self.deck_name}")
         return deck_id
 
@@ -152,29 +163,62 @@ class PhraseCollection:
         tags: list[str] | None = None,
     ) -> int:
         """Generate complete phrase data and add/update note in Anki."""
-        logger.info(f"Starting generation for phrase: {phrase}")
+        [card] = await self.generate_cards(phrase)
+        note_id = await self.save_card(card, tags)
+        logger.success(f"Completed generation for phrase '{phrase}', note {note_id}")
+        return note_id
 
+    async def generate_cards(self, phrase: str) -> list[PhraseCardData]:
+        """Generate the note for ``phrase``, unsaved (always one)."""
+        logger.info(f"Starting generation for phrase: {phrase}")
         phrase_model = await self._generator.generate_phrase_data(
             phrase=phrase,
             target_lang=self._target_language,
             native_lang=self._native_language,
             reasoning_effort=self._reasoning_effort,
         )
-
         media = await self._generator.generate_media(
             phrase_model=phrase_model,
             target_lang=self._target_language,
         )
+        return [PhraseCardData(model=phrase_model, media=media)]
 
-        card_data = PhraseCardData(model=phrase_model, media=media)
-
-        note_id = await self._add_or_update_note(
-            card_data=card_data,
+    async def save_card(
+        self, card: PhraseCardData, tags: list[str] | None = None
+    ) -> int:
+        """Add the card's note, or update the one with the same phrase."""
+        return await self._add_or_update_note(
+            card_data=card,
             tags=tags or [self._target_language.value, "AI-generated", "Phrase"],
         )
 
-        logger.success(f"Completed generation for phrase '{phrase}', note {note_id}")
-        return note_id
+    def note_fields(self, card: PhraseCardData) -> dict[str, str]:
+        """The note's fields as Anki will store them."""
+        return self._convert_to_note_type(card.model, self.media_names(card))
+
+    def media_files(self, card: PhraseCardData) -> dict[str, bytes]:
+        """The card's media under the names its fields refer to."""
+        names, media = self.media_names(card), card.media
+        files: dict[str, bytes] = {}
+        if names.phrase_audio and media.phrase_audio is not None:
+            files[names.phrase_audio] = media.phrase_audio
+        files.update(zip(names.example_audios, media.example_audios, strict=True))
+        return files
+
+    @staticmethod
+    def media_names(card: PhraseCardData) -> MediaReferences:
+        """Names derive from the phrase, so a regenerated note reuses them."""
+        media = card.media
+        phrase_hash = hashlib.md5(card.model.phrase.encode()).hexdigest()[:12]
+        return MediaReferences(
+            phrase_audio=f"{phrase_hash}.mp3"
+            if media.phrase_audio is not None
+            else None,
+            example_audios=[
+                f"{phrase_hash}_ex{index}.mp3"
+                for index in range(len(media.example_audios))
+            ],
+        )
 
     async def _add_or_update_note(
         self,
@@ -182,7 +226,7 @@ class PhraseCollection:
         tags: list[str],
     ) -> int:
         """Add or update a phrase note in Anki."""
-        async with anki_write_batch(self._anki_client):
+        async with anki_write_batch(self._anki):
             phrase_model = card_data.model
             logger.info(
                 f"Adding/updating phrase note '{phrase_model.phrase}' to {self.deck_name}"
@@ -191,17 +235,17 @@ class PhraseCollection:
             media_refs = await self._store_media_files(card_data)
             note_data = self._convert_to_note_type(phrase_model, media_refs)
 
-            note_id = await self._anki_client.notes.find(
+            note_id = await self._anki.notes.find(
                 deck_name=self.deck_name,
                 unique_fields={"phrase": phrase_model.phrase},
             )
 
             if note_id is not None:
-                await self._anki_client.notes.update_fields(note_id, note_data)
-                await self._anki_client.notes.update_tags(note_id, tags)
+                await self._anki.notes.update_fields(note_id, note_data)
+                await self._anki.notes.update_tags(note_id, tags)
                 logger.info(f"Updated phrase note {note_id}")
             else:
-                note_id = await self._anki_client.notes.add(
+                note_id = await self._anki.notes.add(
                     deck_name=self.deck_name,
                     model_name=self.notetype_name,
                     fields=note_data,
@@ -214,25 +258,9 @@ class PhraseCollection:
 
     async def _store_media_files(self, card_data: PhraseCardData) -> MediaReferences:
         """Store media files in Anki and return their references."""
-        phrase_model = card_data.model
-        media = card_data.media
-        phrase_hash = hashlib.md5(phrase_model.phrase.encode()).hexdigest()[:12]
-
-        phrase_audio_name = f"{phrase_hash}.mp3"
-        await self._anki_client.media.store_file(phrase_audio_name, media.phrase_audio)
-        logger.debug(f"Stored phrase audio: {phrase_audio_name}")
-
-        example_audio_names: list[str] = []
-        for i, audio in enumerate(media.example_audios):
-            name = f"{phrase_hash}_ex{i}.mp3"
-            await self._anki_client.media.store_file(name, audio)
-            example_audio_names.append(name)
-        logger.debug(f"Stored {len(example_audio_names)} example audio(s)")
-
-        return MediaReferences(
-            phrase_audio=phrase_audio_name,
-            example_audios=example_audio_names,
-        )
+        for name, data in self.media_files(card_data).items():
+            await self._anki.media.store_file(name, data)
+        return self.media_names(card_data)
 
     def _convert_to_note_type(
         self,
@@ -243,7 +271,9 @@ class PhraseCollection:
         senses = [phrase_model.core_meaning, *phrase_model.supporting_meanings]
         return {
             "phrase": phrase_model.phrase,
-            "pron_audio": f"[sound:{media_refs.phrase_audio}]",
+            "pron_audio": f"[sound:{media_refs.phrase_audio}]"
+            if media_refs.phrase_audio
+            else "",
             "difficulty": phrase_model.difficulty,
             "core_meaning": self._format_core_meaning(phrase_model.core_meaning),
             "sense_notes": self._format_sense_notes(phrase_model.supporting_meanings),

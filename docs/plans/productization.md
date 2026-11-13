@@ -80,8 +80,10 @@ GCP project.
    plus `MediaGap`s (`not_set_up` / `failed`) instead of raising; audio is all
    or nothing per note; `optional_speech_service` means no audio when there is
    no speech route and no `GOOGLE_TTS_KEY`. Empty audio/image fields render
-   cleanly (`tests/test_card_render.py`). Phrase, sentence and STEM cards
-   still fail without speech.
+   cleanly (`tests/test_card_render.py`). Phrase and sentence cards done the
+   same way the same day (shared `collections.common.synthesize_all`; the
+   CLI builds them with `optional_speech_service` too, no silent Google TTS
+   fallback). STEM cards still need it.
 3. **One-key presets.** In Settings and the wizard: "Gemini (one key)" and
    "OpenAI (one key)" fill the text, image, and TTS routes from a single
    pasted key. Existing per-route profiles stay for advanced use.

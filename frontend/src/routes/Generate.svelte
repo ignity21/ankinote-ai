@@ -1,7 +1,7 @@
 <script lang="ts">
   import CardPreview from "../components/CardPreview.svelte";
   import Pane from "../components/Pane.svelte";
-  import type { MediaGap, SavedNote } from "../lib/api";
+  import { KINDS, type MediaGap, type SavedNote } from "../lib/api";
   import { session, type Row } from "../lib/generate.svelte";
   import { t, type MessageKey } from "../lib/i18n.svelte";
   import en from "../lib/locales/en.json";
@@ -106,6 +106,23 @@
         submit();
       }}
     >
+      <div class="kinds" role="radiogroup" aria-label={t("generate.kind")}>
+        {#each KINDS as kind (kind)}
+          <button
+            type="button"
+            role="radio"
+            aria-checked={session.kind === kind}
+            class:on={session.kind === kind}
+            onclick={() => {
+              session.kind = kind;
+              field?.focus();
+            }}
+          >
+            {t(`generate.kind.${kind}`)}
+          </button>
+        {/each}
+      </div>
+
       <label class="prompt">
         <span class="mark" aria-hidden="true">&gt;</span>
         {#if phone}
@@ -113,7 +130,7 @@
             bind:this={field}
             bind:value={input}
             onkeydown={onFieldKey}
-            placeholder={t("generate.placeholderPhone")}
+            placeholder={t(`generate.placeholderPhone.${session.kind}`)}
             aria-label={t("generate.input")}
             autocomplete="off"
             spellcheck="false"
@@ -123,7 +140,7 @@
             bind:this={field}
             bind:value={input}
             onkeydown={onFieldKey}
-            placeholder={t("generate.placeholder")}
+            placeholder={t(`generate.placeholder.${session.kind}`)}
             aria-label={t("generate.input")}
             spellcheck="false"
           ></textarea>
@@ -138,20 +155,24 @@
       </label>
 
       <div class="opts">
-        <label title={session.imageAvailable ? "" : t("generate.imageOff")}>
-          <input
-            type="checkbox"
-            checked={session.image && session.imageAvailable}
-            disabled={!session.imageAvailable}
-            onchange={(e) => (session.image = e.currentTarget.checked)}
-          />
-          {t("generate.image")}
-        </label>
+        {#if session.kind === "word"}
+          <label title={session.imageAvailable ? "" : t("generate.imageOff")}>
+            <input
+              type="checkbox"
+              checked={session.image && session.imageAvailable}
+              disabled={!session.imageAvailable}
+              onchange={(e) => (session.image = e.currentTarget.checked)}
+            />
+            {t("generate.image")}
+          </label>
+        {/if}
         <label>
           <input type="checkbox" bind:checked={session.audio} />
           {t("generate.audio")}
         </label>
-        {#if !session.imageAvailable}<span class="note off">{t("generate.imageOff")}</span>{/if}
+        {#if session.kind === "word" && !session.imageAvailable}
+          <span class="note off">{t("generate.imageOff")}</span>
+        {/if}
       </div>
 
       {#if !phone}
@@ -216,7 +237,7 @@
       {:else if row.state === "generating"}
         <div class="working" role="status">
           <p class="mono">{t("generate.generating", { text: row.text, s: seconds(row) })}</p>
-          <p class="note">{t("generate.patience")}</p>
+          <p class="note">{t(`generate.patience.${row.kind}`)}</p>
         </div>
       {:else if row.state === "failed"}
         <p class="error" role="alert">{failureText(row)}</p>
@@ -225,7 +246,7 @@
           <div class="pos" role="radiogroup" aria-label={t("generate.pos")}>
             {#each row.notes as n, i (n.id)}
               <button role="radio" aria-checked={row.pick === i} class:on={row.pick === i} onclick={() => (row.pick = i)}>
-                {n.part_of_speech}
+                {n.variant}
               </button>
             {/each}
           </div>
@@ -299,6 +320,36 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+  }
+
+  .kinds {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--outer);
+  }
+
+  .kinds button {
+    flex: 1;
+    min-height: 36px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+  }
+
+  .kinds button:hover {
+    color: var(--fg);
+  }
+
+  .kinds button.on {
+    background: var(--sel);
+    color: var(--fg);
   }
 
   .prompt {

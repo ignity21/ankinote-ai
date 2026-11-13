@@ -362,3 +362,43 @@ async def test_ensure_note_type_exists_updates_existing_model():
     ]
     assert len(models.updated_templates) == 2
     assert models.updated_css is not None
+
+
+def test_card_without_audio_has_empty_audio_fields():
+    from ankinote.collections.phrase.collection import PhraseCardData
+    from ankinote.collections.phrase.generator import PhraseMediaFiles
+
+    collection = PhraseCollection(
+        None,
+        native_language=Language.CHINESE_S,
+        target_language=Language.ENGLISH,
+        text_model="m",
+        text_service=cast(TextGenerationService, DummyTextService()),
+    )
+    card = PhraseCardData(model=_build_model(), media=PhraseMediaFiles(None))
+
+    fields = collection.note_fields(card)
+
+    assert fields["pron_audio"] == ""
+    assert fields["example_audio_refs"] == ""
+    assert "[sound:" not in fields["examples"]
+    assert collection.media_files(card) == {}
+    assert [t["Name"] for t in collection.card_templates()] == ["Recognition", "Recall"]
+
+
+def test_media_files_are_named_as_the_fields_refer_to_them():
+    from ankinote.collections.phrase.collection import PhraseCardData
+    from ankinote.collections.phrase.generator import PhraseMediaFiles
+
+    collection, _ = _build_collection(Language.ENGLISH)
+    card = PhraseCardData(
+        model=_build_model(),
+        media=PhraseMediaFiles(b"phrase", example_audios=[b"ex0"]),
+    )
+
+    fields = collection.note_fields(card)
+    files = collection.media_files(card)
+
+    assert set(files.values()) == {b"phrase", b"ex0"}
+    for name in files:
+        assert f"[sound:{name}]" in fields["pron_audio"] + fields["examples"]

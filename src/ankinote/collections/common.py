@@ -1,14 +1,17 @@
 """Common utilities for collection modules."""
 
+import asyncio
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from importlib.resources import files
-from typing import Literal, TypeVar
+from typing import Literal, TypeVar, cast
 
+from loguru import logger
 from pydantic import BaseModel
 
-from ankinote.consts import Language
+from ankinote.consts import RUBY_ANNOTATION_LANGUAGES, Language
+from ankinote.services.tts import SpeechSynthesizer
 
 
 @dataclass(frozen=True)
@@ -172,3 +175,27 @@ def convert_to_html_ruby(text: str) -> str:
     """Convert angled-style phonetic annotations to HTML ruby tags."""
     text = _INLINE_PHONETIC_PATTERN.sub(r"<ruby>\1<rt>\2</rt></ruby>", text)
     return _ANGLED_PHONETIC_PATTERN.sub(r"<ruby>\1<rt>\2</rt></ruby>", text)
+
+
+async def synthesize_all(
+    tts: SpeechSynthesizer | None, texts: list[str], target_lang: Language
+) -> tuple[list[bytes], list[MediaGap]]:
+    """Audio for every text, or none and the gap that says why.
+
+    All or nothing: a card with half its audio has example buttons that play
+    nothing, which is worse than no buttons.
+    """
+    if tts is None:
+        return [], [MediaGap("audio", "not_set_up")]
+    if target_lang in RUBY_ANNOTATION_LANGUAGES:
+        texts = [strip_phonetic_annotations(text) for text in texts]
+    results = await asyncio.gather(
+        *(tts.synthesize(text) for text in texts), return_exceptions=True
+    )
+    for result in results:
+        if isinstance(result, BaseException):
+            if not isinstance(result, Exception):
+                raise result
+            logger.warning(f"Speech failed, card made without audio: {result}")
+            return [], [MediaGap("audio", "failed", str(result))]
+    return cast(list[bytes], results), []

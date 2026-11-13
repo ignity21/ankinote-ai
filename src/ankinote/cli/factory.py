@@ -24,7 +24,6 @@ from ankinote.services.provider_factory import (
     build_image_service,
     build_text_service,
     optional_speech_service,
-    speech_service_for,
 )
 from ankinote.settings import ProviderProfile, Settings, load_settings
 
@@ -159,7 +158,7 @@ def build_phrase_collection(
         text_model=_resolve_text_model(options.llm_model, text_profile),
         text_service=build_text_service(text_profile),
         reasoning_effort=options.reasoning_effort,
-        tts_service=speech_service_for(settings, options.target_language),
+        tts_service=optional_speech_service(settings, options.target_language),
     )
 
 
@@ -179,7 +178,7 @@ def build_sentence_collection(
         text_model=_resolve_text_model(options.llm_model, text_profile),
         text_service=build_text_service(text_profile),
         reasoning_effort=options.reasoning_effort,
-        tts_service=speech_service_for(settings, options.target_language),
+        tts_service=optional_speech_service(settings, options.target_language),
     )
 
 

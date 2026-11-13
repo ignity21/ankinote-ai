@@ -78,13 +78,17 @@
 
 <div class="preview">
   <div class="controls">
-    <div class="segments" role="radiogroup" aria-label={t("preview.template")}>
-      {#each note.cards as c, i (c.name)}
-        <button role="radio" aria-checked={index === i} class:on={index === i} onclick={() => (index = i)}>
-          {templateName(c.name)}
-        </button>
-      {/each}
-    </div>
+    {#if note.cards.length > 1}
+      <div class="segments" role="radiogroup" aria-label={t("preview.template")}>
+        {#each note.cards as c, i (c.name)}
+          <button role="radio" aria-checked={index === i} class:on={index === i} onclick={() => (index = i)}>
+            {templateName(c.name)}
+          </button>
+        {/each}
+      </div>
+    {:else}
+      <span class="single">{templateName(card.name)}</span>
+    {/if}
     <div class="segments" role="radiogroup" aria-label={t("preview.side")}>
       <button role="radio" aria-checked={!back} class:on={!back} onclick={() => (back = false)}>
         {t("preview.front")}
@@ -116,6 +120,13 @@
     flex-wrap: wrap;
     gap: 8px;
     justify-content: space-between;
+  }
+
+  .single {
+    align-self: center;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--muted);
   }
 
   .segments {

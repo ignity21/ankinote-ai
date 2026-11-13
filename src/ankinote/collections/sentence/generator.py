@@ -1,12 +1,12 @@
 """Sentence card generator using AI."""
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from loguru import logger
 
-from ankinote.collections.common import create_prompt_loader, strip_phonetic_annotations
-from ankinote.consts import RUBY_ANNOTATION_LANGUAGES, Language
+from ankinote.collections.common import MediaGap, create_prompt_loader, synthesize_all
+from ankinote.consts import Language
 from ankinote.services.ai import DISABLE_REASONING, TextGenerationService
 from ankinote.services.tts import SpeechSynthesizer
 
@@ -18,10 +18,12 @@ class SentenceMediaFiles:
     """Media files generated for a single SentenceModel.
 
     Attributes:
-        sentence_audio: MP3 bytes of the phrase itself.
+        sentence_audio: MP3 bytes of the sentence; None without audio.
+        gaps: why audio is missing, when it is.
     """
 
-    sentence_audio: bytes
+    sentence_audio: bytes | None
+    gaps: list[MediaGap] = field(default_factory=list)
 
 
 _LANGUAGE_TO_FILENAME: dict[Language, str] = {
@@ -116,10 +118,11 @@ class SentenceGenerator:
 
     def __init__(
         self,
-        tts_service: SpeechSynthesizer,
+        tts_service: SpeechSynthesizer | None,
         text_service: TextGenerationService,
         text_model: str,
     ) -> None:
+        # None: cards are made without audio.
         self._text_service = text_service
         self._text_model = text_model
         self._tts_service = tts_service
@@ -148,22 +151,12 @@ class SentenceGenerator:
         sentence_model: SentenceModel,
         target_lang: Language,
     ) -> SentenceMediaFiles:
-        """Generate all audio assets for a SentenceModel.
-
-        Args:
-            sentence_model: The sentence model to generate media for.
-            target_lang: Target language, used to select the TTS voice.
-
-        Returns:
-            PhraseMediaFiles with phrase audio and example audios.
-        """
+        """Generate the sentence's audio; without it, ``gaps`` says why."""
         target_sentence = sentence_model.target_sentence
         logger.info(f"Generating media for sentence '{target_sentence}'")
-        if target_lang in RUBY_ANNOTATION_LANGUAGES:
-            target_sentence = strip_phonetic_annotations(target_sentence)
-        audio = await self._tts_service.synthesize(target_sentence)
-        logger.success(f"Sentence audio generated for '{target_sentence}'")
-
+        audios, gaps = await synthesize_all(
+            self._tts_service, [target_sentence], target_lang
+        )
         return SentenceMediaFiles(
-            sentence_audio=audio,
+            sentence_audio=audios[0] if audios else None, gaps=gaps
         )

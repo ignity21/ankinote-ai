@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 
 from loguru import logger
 
-from ankinote.collections.common import create_prompt_loader, strip_phonetic_annotations
-from ankinote.consts import RUBY_ANNOTATION_LANGUAGES, Language
+from ankinote.collections.common import MediaGap, create_prompt_loader, synthesize_all
+from ankinote.consts import Language
 from ankinote.services.ai import DISABLE_REASONING, TextGenerationService
 from ankinote.services.tts import SpeechSynthesizer
 
@@ -18,13 +18,15 @@ class PhraseMediaFiles:
     """Media files generated for a single PhraseModel.
 
     Attributes:
-        phrase_audio: MP3 bytes of the phrase itself.
+        phrase_audio: MP3 bytes of the phrase itself; None without audio.
         example_audios: MP3 bytes for each example sentence, ordered to match
-            PhraseModel.examples 1-to-1.
+            PhraseModel.examples 1-to-1; empty without audio.
+        gaps: why audio is missing, when it is.
     """
 
-    phrase_audio: bytes
+    phrase_audio: bytes | None
     example_audios: list[bytes] = field(default_factory=list)
+    gaps: list[MediaGap] = field(default_factory=list)
 
 
 _LANGUAGE_TO_FILENAME: dict[Language, str] = {
@@ -129,10 +131,11 @@ class PhraseGenerator:
 
     def __init__(
         self,
-        tts_service: SpeechSynthesizer,
+        tts_service: SpeechSynthesizer | None,
         text_service: TextGenerationService,
         text_model: str,
     ) -> None:
+        # None: cards are made without audio.
         self._text_service = text_service
         self._text_model = text_model
         self._tts_service = tts_service
@@ -168,26 +171,20 @@ class PhraseGenerator:
             target_lang: Target language, used to select the TTS voice.
 
         Returns:
-            PhraseMediaFiles with phrase audio and example audios.
+            PhraseMediaFiles; audio that can't be made is left out and
+            recorded in ``gaps``.
         """
         logger.info(f"Generating media for phrase '{phrase_model.phrase}'")
-
-        phrase_audio = await self._tts_service.synthesize(phrase_model.phrase)
-        example_audios = []
-        for example in phrase_model.examples:
-            if target_lang in RUBY_ANNOTATION_LANGUAGES:
-                sentence = strip_phonetic_annotations(example.sentence)
-            else:
-                sentence = example.sentence
-            example_audio = await self._tts_service.synthesize(sentence)
-            example_audios.append(example_audio)
-
+        texts = [
+            phrase_model.phrase,
+            *(example.sentence for example in phrase_model.examples),
+        ]
+        audios, gaps = await synthesize_all(self._tts_service, texts, target_lang)
         logger.success(
-            f"Media ready for '{phrase_model.phrase}': "
-            f"1 phrase audio, {len(example_audios)} example audio(s)"
+            f"Media ready for '{phrase_model.phrase}': {len(audios)} audio clip(s)"
         )
-
         return PhraseMediaFiles(
-            phrase_audio=phrase_audio,
-            example_audios=example_audios,
+            phrase_audio=audios[0] if audios else None,
+            example_audios=audios[1:],
+            gaps=gaps,
         )

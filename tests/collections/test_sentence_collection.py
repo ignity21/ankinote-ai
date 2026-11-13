@@ -262,3 +262,34 @@ async def test_ensure_note_type_exists_updates_existing_model():
     ]
     assert len(models.updated_templates) == 1
     assert models.updated_css is not None
+
+
+def test_card_without_audio_has_an_empty_audio_field():
+    from ankinote.collections.sentence.collection import SentenceCardData
+    from ankinote.collections.sentence.generator import SentenceMediaFiles
+
+    collection = SentenceCollection(
+        None,
+        native_language=Language.CHINESE_S,
+        target_language=Language.ENGLISH,
+        text_model="m",
+        text_service=cast(TextGenerationService, DummyTextService()),
+    )
+    card = SentenceCardData(model=_build_model(), media=SentenceMediaFiles(None))
+
+    assert collection.note_fields(card)["pron_audio"] == ""
+    assert collection.media_files(card) == {}
+    assert [t["Name"] for t in collection.card_templates()] == ["Production"]
+
+
+def test_sentence_audio_is_named_as_the_field_refers_to_it():
+    from ankinote.collections.sentence.collection import SentenceCardData
+    from ankinote.collections.sentence.generator import SentenceMediaFiles
+
+    collection, _ = _build_collection(Language.ENGLISH)
+    card = SentenceCardData(model=_build_model(), media=SentenceMediaFiles(b"mp3"))
+
+    [(name, data)] = collection.media_files(card).items()
+
+    assert data == b"mp3"
+    assert collection.note_fields(card)["pron_audio"] == f"[sound:{name}]"

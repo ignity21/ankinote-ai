@@ -35,6 +35,33 @@ MOON = {
 }
 
 
+TAKE_OFF = {
+    "phrase": "take off",
+    "difficulty": "B1",
+    "core_meaning": {"target_text": "to leave the ground", "native_text": "起飞"},
+    "supporting_meanings": [],
+    "examples": [
+        {
+            "sentence": "The plane takes off at six.",
+            "translation": "飞机六点起飞。",
+            "highlights": ["takes off"],
+        }
+    ],
+    "usage_pattern": None,
+    "production_hint": "飞机离开地面",
+    "confusions": [],
+    "etymology_or_memory": None,
+    "associations": ["land"],
+}
+
+OVERSLEPT = {
+    "target_sentence": "I overslept this morning.",
+    "native_sentence": "我今天早上睡过头了。",
+    "notes": ["oversleep: 睡过头"],
+    "phrases": [],
+}
+
+
 def _completion(text: str) -> Any:
     message = type("M", (), {"content": text})
     choice = type("C", (), {"message": message})
@@ -93,7 +120,8 @@ async def test_generate_returns_a_preview_of_every_card(
     assert response.status_code == 200, response.text
     [note] = response.json()["notes"]
     assert models["prompts"][0].startswith("Word: moon\n")
-    assert (note["lemma"], note["deck"]) == ("moon", "AINote::Words")
+    assert (note["kind"], note["headword"], note["variant"]) == ("word", "moon", "noun")
+    assert note["deck"] == "AINote::Words"
     assert note["gaps"] == []
     assert [c["name"] for c in note["cards"]] == ["Recognition", "Recall", "Spelling"]
     recognition = note["cards"][0]
@@ -216,3 +244,80 @@ async def test_unknown_draft_is_gone(api: httpx.AsyncClient) -> None:
     response = await api.post("/api/cards/drafts/nope/save")
     assert response.status_code == 404
     assert response.json()["detail"]["code"] == "draft_gone"
+
+
+@pytest.mark.parametrize(
+    ("kind", "answer", "text", "deck", "templates", "first_audio"),
+    [
+        (
+            "phrase",
+            TAKE_OFF,
+            "take off",
+            "AINote::Phrases",
+            ["Recognition", "Recall"],
+            b"mp3:take off",
+        ),
+        (
+            "sentence",
+            OVERSLEPT,
+            "I overslept this morning.",
+            "AINote::Sentences",
+            ["Production"],
+            b"mp3:I overslept this morning.",
+        ),
+    ],
+)
+async def test_phrase_and_sentence_preview_then_save(
+    api: httpx.AsyncClient,
+    models: dict[str, Any],
+    ankiweb: dict[str, Any],
+    kind: str,
+    answer: dict,
+    text: str,
+    deck: str,
+    templates: list[str],
+    first_audio: bytes,
+) -> None:
+    await builtin(api)
+    await login(api)
+    await _gemini(api)
+    models["answer"] = json.dumps(answer)
+
+    response = await api.post(f"/api/cards/{kind}", json={"text": text})
+
+    assert response.status_code == 200, response.text
+    [note] = response.json()["notes"]
+    assert (note["kind"], note["headword"], note["variant"]) == (kind, text, "")
+    assert note["deck"] == deck
+    assert note["gaps"] == []
+    assert [c["name"] for c in note["cards"]] == templates
+    sides = note["cards"][0]["front"] + note["cards"][0]["back"]
+    prefix = f"/api/cards/drafts/{note['id']}/media/"
+    first = sides.split(prefix)[1].split('"')[0]
+    assert (await api.get(prefix + first)).content == first_audio
+
+    saved = await api.post(f"/api/cards/drafts/{note['id']}/save")
+
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["deck"] == deck
+    field = "phrase" if kind == "phrase" else "target_sentence"
+    found = await create_anki_client().notes.find(
+        deck_name=deck, unique_fields={field: text}
+    )
+    assert found == saved.json()["note_id"]
+
+
+async def test_sentence_without_speech_says_so_and_never_asks_for_images(
+    api: httpx.AsyncClient, models: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await _gemini(api, image=False)
+    monkeypatch.setattr(cards_api, "optional_speech_service", lambda *_: None)
+    models["answer"] = json.dumps(OVERSLEPT)
+
+    response = await api.post(
+        "/api/cards/sentence", json={"text": "I overslept this morning.", "image": True}
+    )
+
+    [note] = response.json()["notes"]
+    assert note["gaps"] == [{"kind": "audio", "reason": "not_set_up", "detail": ""}]
+    assert "replay-button" not in note["cards"][0]["back"]

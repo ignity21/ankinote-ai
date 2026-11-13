@@ -186,7 +186,8 @@ class Session {
     row.state = "generating";
     row.startedAt = Date.now();
     row.saved = null;
-    const media = { image: this.image && this.imageAvailable, audio: this.audio };
+    const image = row.kind === "word" && this.image && this.imageAvailable;
+    const media = { image, audio: this.audio };
     try {
       row.notes = (await api.generate(row.kind, row.text, media)).notes;
       row.pick = 0;
