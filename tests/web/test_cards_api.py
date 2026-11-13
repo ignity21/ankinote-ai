@@ -88,7 +88,7 @@ async def test_generate_returns_a_preview_of_every_card(
 ) -> None:
     await _gemini(api)
 
-    response = await api.post("/api/cards/word", json={"word": " moon "})
+    response = await api.post("/api/cards/word", json={"text": " moon "})
 
     assert response.status_code == 200, response.text
     [note] = response.json()["notes"]
@@ -106,7 +106,7 @@ async def test_preview_media_is_served_from_the_draft(
     api: httpx.AsyncClient, models: dict[str, Any]
 ) -> None:
     await _gemini(api)
-    note = (await api.post("/api/cards/word", json={"word": "moon"})).json()["notes"][0]
+    note = (await api.post("/api/cards/word", json={"text": "moon"})).json()["notes"][0]
     back = note["cards"][0]["back"]
     prefix = f"/api/cards/drafts/{note['id']}/media/"
     names = [part.split('"')[0].split("'")[0] for part in back.split(prefix)[1:]]
@@ -123,7 +123,7 @@ async def test_missing_routes_make_a_card_without_media_and_say_so(
     await _gemini(api, image=False)
     monkeypatch.setattr(cards_api, "optional_speech_service", lambda *_: None)
 
-    response = await api.post("/api/cards/word", json={"word": "moon"})
+    response = await api.post("/api/cards/word", json={"text": "moon"})
 
     [note] = response.json()["notes"]
     assert {(g["kind"], g["reason"]) for g in note["gaps"]} == {
@@ -134,13 +134,28 @@ async def test_missing_routes_make_a_card_without_media_and_say_so(
     assert "<img" not in note["cards"][0]["back"]
 
 
+async def test_media_turned_off_is_left_out_without_a_gap(
+    api: httpx.AsyncClient, models: dict[str, Any]
+) -> None:
+    await _gemini(api)
+
+    response = await api.post(
+        "/api/cards/word", json={"text": "moon", "image": False, "audio": False}
+    )
+
+    [note] = response.json()["notes"]
+    assert note["gaps"] == []
+    assert "replay-button" not in note["cards"][0]["front"]
+    assert "<img" not in note["cards"][0]["back"]
+
+
 async def test_unreadable_model_answer_is_bad_output(
     api: httpx.AsyncClient, models: dict[str, Any]
 ) -> None:
     await _gemini(api)
     models["answer"] = "Sorry, I can't help with that."
 
-    response = await api.post("/api/cards/word", json={"word": "moon"})
+    response = await api.post("/api/cards/word", json={"text": "moon"})
 
     assert response.status_code == 502
     assert response.json()["detail"]["code"] == "bad_output"
@@ -152,7 +167,7 @@ async def test_rejected_key_is_auth(
     await _gemini(api)
     models["answer"] = RuntimeError("API key not valid. Please pass a valid API key.")
 
-    response = await api.post("/api/cards/word", json={"word": "moon"})
+    response = await api.post("/api/cards/word", json={"text": "moon"})
 
     assert response.status_code == 502
     assert response.json()["detail"]["code"] == "auth"
@@ -164,7 +179,7 @@ async def test_save_writes_the_note_and_saving_again_updates_it(
     await builtin(api)
     await login(api)
     await _gemini(api)
-    note = (await api.post("/api/cards/word", json={"word": "moon"})).json()["notes"][0]
+    note = (await api.post("/api/cards/word", json={"text": "moon"})).json()["notes"][0]
 
     first = await api.post(f"/api/cards/drafts/{note['id']}/save")
     again = await api.post(f"/api/cards/drafts/{note['id']}/save")
@@ -187,7 +202,7 @@ async def test_save_waits_for_the_first_sync(
 ) -> None:
     await builtin(api)
     await _gemini(api)
-    note = (await api.post("/api/cards/word", json={"word": "moon"})).json()["notes"][0]
+    note = (await api.post("/api/cards/word", json={"text": "moon"})).json()["notes"][0]
 
     response = await api.post(f"/api/cards/drafts/{note['id']}/save")
 

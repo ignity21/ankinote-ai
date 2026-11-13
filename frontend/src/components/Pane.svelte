@@ -4,12 +4,19 @@
   let {
     title,
     area,
+    fill = false,
     children,
-  }: { title: string; area?: string; children: Snippet } = $props();
+  }: {
+    title: string;
+    area?: string;
+    /** Lay children out as a column that fills the pane's height. */
+    fill?: boolean;
+    children: Snippet;
+  } = $props();
 </script>
 
 <!-- The focused pane (focus anywhere inside) gets the accent border. -->
-<section class="pane" style:grid-area={area} aria-label={title}>
+<section class="pane" class:fill style:grid-area={area} aria-label={title}>
   <h2 class="pane-title">{title}</h2>
   {@render children()}
 </section>
@@ -24,6 +31,11 @@
     background: var(--tile);
     border: 2px solid var(--border);
     border-radius: 10px;
+  }
+
+  .pane.fill {
+    display: flex;
+    flex-direction: column;
   }
 
   .pane:focus-within {

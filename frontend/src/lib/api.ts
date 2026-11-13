@@ -112,6 +112,9 @@ export type Languages = {
   natives: string[];
   targets: { id: string; beta: boolean }[];
 };
+/** What a line of input becomes. */
+export type Kind = "word";
+
 /** Media a card goes without: no model for it, or the model failed. */
 export type MediaGap = { kind: "audio" | "image"; reason: "not_set_up" | "failed"; detail: string };
 
@@ -197,7 +200,7 @@ export const api = {
     request<AnkiStatus>("POST", "/api/anki/full-sync", { direction }),
   noteTypes: () => request<NoteTypeItem[]>("GET", "/api/anki/note-types"),
   prepareNoteTypes: () => request<NoteTypeItem[]>("POST", "/api/anki/note-types"),
-  generateWord: (word: string) =>
-    request<{ notes: DraftNote[] }>("POST", "/api/cards/word", { word }),
+  generate: (kind: Kind, text: string, media: { image?: boolean; audio?: boolean } = {}) =>
+    request<{ notes: DraftNote[] }>("POST", `/api/cards/${kind}`, { text, ...media }),
   saveDraft: (id: string) => request<SavedNote>("POST", `/api/cards/drafts/${id}/save`),
 };

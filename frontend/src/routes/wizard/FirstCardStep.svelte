@@ -26,15 +26,15 @@
   });
 
   function gapText(gap: MediaGap): string {
-    return t(`first.gap.${gap.kind}.${gap.reason}` as MessageKey, { detail: gap.detail });
+    return t(`gap.${gap.kind}.${gap.reason}` as MessageKey, { detail: gap.detail });
   }
 
   function syncText(saved: SavedNote): string {
     const sync = saved.sync;
-    if (!sync) return t("first.sync.desktop");
-    if (sync.error) return t("first.sync.error");
-    if (sync.state === "idle") return t("first.sync.done");
-    return t("first.sync.pending");
+    if (!sync) return t("sync.desktop");
+    if (sync.error) return t("sync.error");
+    if (sync.state === "idle") return t("sync.done");
+    return t("sync.pending");
   }
 
   function submit(event: SubmitEvent) {

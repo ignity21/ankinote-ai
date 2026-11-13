@@ -113,6 +113,17 @@ palette / mode / language switches.
 - Missing capabilities degrade visibly, not silently: a card saved without
   images says "No image: no image model is set up."
 
+Generate page, built 2026-11-13 (words only so far): each input line is a
+queue row (`○` waiting, spinner with seconds, `●` ready, `✓` saved, `✗`
+failed); two rows generate at a time and nothing reaches Anki until Save.
+"Save N ready" saves the rest of a batch. Pictures and Audio switches sit
+under the input (kept in the browser); a switch turned off leaves that
+media out without a "No image" note, and Pictures is disabled when no image
+model is set up. Keys: `Ctrl+S` saves the selected row (also from the text
+field), `R` regenerates, `↑`/`↓` select. The queue is per browser tab: a
+reload starts a new session. Still to come: Phrase / Sentence / STEM kinds
+(the mock's kind segment) and Edit fields.
+
 ## First-run wizard
 
 Five steps. Desktop and tablet show a step list on the left (done steps can

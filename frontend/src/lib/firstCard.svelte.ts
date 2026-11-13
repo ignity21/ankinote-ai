@@ -39,7 +39,7 @@ export class FirstCard {
     this.elapsed = 0;
     const timer = setInterval(() => (this.elapsed += 1), 1000);
     try {
-      this.notes = (await api.generateWord(word)).notes;
+      this.notes = (await api.generate("word", word)).notes;
       this.selected = 0;
     } catch (error) {
       this.failure = describe(error, "generate");

@@ -12,6 +12,7 @@ import uuid
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import PurePosixPath
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Response
 from loguru import logger
@@ -53,10 +54,13 @@ class Draft:
 _drafts: OrderedDict[str, Draft] = OrderedDict()
 
 
-class WordIn(BaseModel):
-    word: str = Field(min_length=1, max_length=100)
+class GenerateIn(BaseModel):
+    text: str = Field(min_length=1, max_length=300)
     image: bool | None = Field(
         default=None, description="Omit to follow the saved default."
+    )
+    audio: bool = Field(
+        default=True, description="False leaves audio out, without a gap."
     )
 
 
@@ -65,7 +69,12 @@ def _fail(status: int, code: str, detail: str = "") -> HTTPException:
 
 
 def _collection(
-    settings: Settings, native: Language, target: Language, *, want_image: bool
+    settings: Settings,
+    native: Language,
+    target: Language,
+    *,
+    want_image: bool,
+    want_audio: bool,
 ) -> tuple[WordCollection, list[MediaGap]]:
     text = active_profile(settings, "text")
     if text is None:
@@ -81,7 +90,7 @@ def _collection(
         image_service=build_image_service(image, image_size=settings.image_size)
         if image
         else None,
-        tts_service=optional_speech_service(settings, target),
+        tts_service=optional_speech_service(settings, target) if want_audio else None,
     )
     return collection, gaps
 
@@ -137,18 +146,20 @@ def _keep(draft: Draft) -> None:
 router = APIRouter(prefix="/api/cards")
 
 
-@router.post("/word")
-async def generate_word(body: WordIn) -> dict:
-    """Generate the notes for a word (one per part of speech), unsaved."""
+@router.post("/{kind}")
+async def generate(kind: Literal["word"], body: GenerateIn) -> dict:
+    """Generate the notes for ``text`` (a word: one per part of speech), unsaved."""
     settings = load_settings()
     apply_env(settings)
     native = Language(settings.defaults.native_language)
     target = Language(settings.defaults.target_language)
     want_image = settings.defaults.generate_image if body.image is None else body.image
-    collection, gaps = _collection(settings, native, target, want_image=want_image)
+    collection, gaps = _collection(
+        settings, native, target, want_image=want_image, want_audio=body.audio
+    )
     try:
         async with asyncio.timeout(GENERATE_TIMEOUT_SECONDS):
-            cards = await collection.generate_cards(body.word.strip())
+            cards = await collection.generate_cards(body.text.strip())
     except TimeoutError as exc:
         raise _fail(504, "timeout") from exc
     except Exception as exc:
@@ -160,6 +171,9 @@ async def generate_word(body: WordIn) -> dict:
 
     notes = []
     for card in cards:
+        if not body.audio:
+            # Turned off on purpose: nothing to report.
+            card.media.gaps[:] = [g for g in card.media.gaps if g.kind != "audio"]
         card.media.gaps[:0] = gaps
         draft = Draft(
             id=uuid.uuid4().hex,
