@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { FormField, FormRow } from "../lib/api";
   import { columnLabel as column, editErrorText, fieldLabel as label } from "../lib/editText";
+  import { link } from "../lib/router.svelte";
+  import { sectionFor } from "../lib/settings";
   import type { Editing } from "../lib/generate.svelte";
   import { t } from "../lib/i18n.svelte";
 
@@ -67,7 +69,15 @@
 
 <div class="editor" bind:this={root}>
   {#if failure}
-    <p class="error" role="alert">{errorText()}</p>
+    {@const section = sectionFor(failure.code)}
+    <p class="error" role="alert">
+      {errorText()}
+      {#if section}
+        <a class="go" href="/settings/{section}" onclick={link}>
+          {t("settings.open", { section: t(`settings.section.${section}`) })}
+        </a>
+      {/if}
+    </p>
   {/if}
   <p class="note">{t(editing.isLive ? "edit.introStem" : "edit.intro")}</p>
 
@@ -153,6 +163,11 @@
 </div>
 
 <style>
+  .go {
+    color: var(--accent);
+    white-space: nowrap;
+  }
+
   .editor {
     display: flex;
     flex-direction: column;

@@ -19,12 +19,17 @@
 
   const paletteName = $derived(palettes.find((p) => p.id === theme.palette)?.name ?? "");
 
+  /** A workspace's own page or one under it (/settings/anki). */
+  function here(path: string): boolean {
+    return router.path === path || (path !== "/" && router.path.startsWith(`${path}/`));
+  }
+
   function onKey(event: KeyboardEvent) {
     const target = event.target as HTMLElement;
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     if (target.closest("input, textarea, select, [contenteditable]")) return;
     const ws = workspaces.find((w) => String(w.n) === event.key);
-    if (ws) router.go(ws.path);
+    if (ws && !here(ws.path)) router.go(ws.path);
   }
 </script>
 
@@ -37,8 +42,8 @@
       <a
         href={ws.path}
         onclick={link}
-        class:on={router.path === ws.path}
-        aria-current={router.path === ws.path ? "page" : undefined}
+        class:on={here(ws.path)}
+        aria-current={here(ws.path) ? "page" : undefined}
       >
         <span class="n">{ws.n}</span><span class="label">{t(ws.key)}</span>
       </a>

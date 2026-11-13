@@ -216,14 +216,18 @@ class Session {
     });
   }
 
-  /** Learn which media can be made; the switches follow it. */
+  /**
+   * Learn which media can be made; the switches follow it. Runs each time the
+   * page opens, since Settings may have added or removed the image model.
+   */
   async load() {
-    if (this.#settingsLoaded) return;
     try {
       const settings = await api.settings();
-      this.#settingsLoaded = true;
       this.imageAvailable = settings.models.image !== null;
-      if (stored().image === undefined) this.image = settings.defaults.generate_image;
+      if (!this.#settingsLoaded && stored().image === undefined) {
+        this.image = settings.defaults.generate_image;
+      }
+      this.#settingsLoaded = true;
     } catch {
       // Keep the switches as they are; a failed request shows on the row.
     }

@@ -13,6 +13,8 @@
   import { editErrorText } from "../lib/editText";
   import { session, type Row } from "../lib/generate.svelte";
   import { t, type MessageKey } from "../lib/i18n.svelte";
+  import { link } from "../lib/router.svelte";
+  import { sectionFor } from "../lib/settings";
   import en from "../lib/locales/en.json";
 
   void session.load();
@@ -185,6 +187,16 @@
 </script>
 
 <svelte:window onkeydown={onKey} />
+
+<!-- A failure Settings can fix links to the section that fixes it. -->
+{#snippet goFix(code: string | undefined)}
+  {@const section = code ? sectionFor(code) : null}
+  {#if section}
+    <a class="go" href="/settings/{section}" onclick={link}>
+      {t("settings.open", { section: t(`settings.section.${section}`) })}
+    </a>
+  {/if}
+{/snippet}
 
 {#snippet mathList(errors: MathError[], fixable: boolean)}
   {#if errors.length}
@@ -381,7 +393,7 @@
           <p class="note">{t(`generate.patience.${row.kind}`)}</p>
         </div>
       {:else if row.state === "failed"}
-        <p class="error" role="alert">{failureText(row)}</p>
+        <p class="error" role="alert">{failureText(row)} {@render goFix(row.failure?.code)}</p>
       {:else if editing && live}
         {#if tabbed}
           <div class="tabs segments" role="tablist">
@@ -429,7 +441,7 @@
         {#if note.gaps.length}
           <ul class="gaps">
             {#each note.gaps as gap (gap.kind)}
-              <li>{gapText(gap)}</li>
+              <li>{gapText(gap)} {@render goFix(gap.reason)}</li>
             {/each}
           </ul>
         {/if}
@@ -493,9 +505,9 @@
     {:else if row && (row.saveable || row.state === "saving" || row.state === "failed")}
       <div class="actions">
         {#if row.changeFailure}
-          <p class="error" role="alert">{changeFailureText(row)}</p>
+          <p class="error" role="alert">{changeFailureText(row)} {@render goFix(row.changeFailure.code)}</p>
         {:else if row.failure && row.state !== "failed"}
-          <p class="error" role="alert">{failureText(row)}</p>
+          <p class="error" role="alert">{failureText(row)} {@render goFix(row.failure.code)}</p>
         {:else if row.state === "saved" && row.saved}
           <p class="note" role="status">
             <span class="ok" aria-hidden="true">✓</span>
@@ -997,6 +1009,11 @@
     font-family: var(--mono);
     font-size: 13px;
     overflow-wrap: anywhere;
+  }
+
+  .go {
+    color: var(--accent);
+    white-space: nowrap;
   }
 
   .math-errors > .note {

@@ -409,5 +409,18 @@
   "fix.submit": "Fix with AI",
   "fix.hint": "Only these formulas change; Undo brings the card back.",
   "fix.working": "Fixing formulas… {s} s",
-  "fix.live": "Fix them in the form, or apply the edit and use Fix with AI."
+  "fix.live": "Fix them in the form, or apply the edit and use Fix with AI.",
+  "settings.section.models": "Models",
+  "settings.section.anki": "Anki",
+  "settings.section.languages": "Languages",
+  "settings.section.appearance": "Appearance",
+  "settings.save": "Save",
+  "settings.saved": "Saved.",
+  "settings.unsaved": "Not saved yet.",
+  "settings.wizard": "Run the setup wizard again",
+  "settings.open": "Open Settings → {section}",
+  "model.testToSave": "Test the connection before saving.",
+  "model.textFailedSave": "Card text has to work before you can save.",
+  "languages.introSettings": "Cards teach one language and explain it in another you already know. New cards use the pair saved here; cards already in Anki stay as they are.",
+  "appearance.browserNote": "Colours are kept in this browser; other devices keep their own."
 }

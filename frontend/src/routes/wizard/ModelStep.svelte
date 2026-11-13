@@ -2,11 +2,13 @@
   import { ROUTES } from "../../lib/api";
   import ConnectionResults from "../../components/ConnectionResults.svelte";
   import RouteEditor from "../../components/RouteEditor.svelte";
+  import SaveBar from "../../components/SaveBar.svelte";
   import StepNav from "../../components/StepNav.svelte";
   import { t, type MessageKey } from "../../lib/i18n.svelte";
   import { ModelSetup } from "../../lib/modelSetup.svelte";
 
-  let { onnext }: { onnext: () => void } = $props();
+  /** `settings`: Settings → Models, where the footer saves instead of moving on. */
+  let { onnext = () => {}, settings = false }: { onnext?: () => void; settings?: boolean } = $props();
 
   const setup = new ModelSetup();
   let showKey = $state(false);
@@ -34,10 +36,18 @@
     if (await setup.save()) onnext();
   }
 
+  let justSaved = $state(false);
+
+  async function save() {
+    justSaved = await setup.save();
+  }
+
   const hint = $derived.by(() => {
     if (setup.canContinue) return "";
-    if (setup.current && setup.results?.text.status !== "ok") return t("model.textFailed");
-    return t("model.testFirst");
+    if (setup.current && setup.results?.text.status !== "ok") {
+      return t(settings ? "model.textFailedSave" : "model.textFailed");
+    }
+    return t(settings ? "model.testToSave" : "model.testFirst");
   });
 
   const errorText = $derived.by(() => {
@@ -131,7 +141,20 @@
   {/if}
 {/if}
 
-<StepNav {hint} onnext={next} nextDisabled={!setup.canContinue} busy={setup.saving} />
+{#if settings}
+  {#if setup.saved}
+    <SaveBar
+      onsave={save}
+      changed={!setup.unchangedSave}
+      canSave={setup.canContinue}
+      busy={setup.saving}
+      saved={justSaved}
+      {hint}
+    />
+  {/if}
+{:else}
+  <StepNav {hint} onnext={next} nextDisabled={!setup.canContinue} busy={setup.saving} />
+{/if}
 
 <style>
   .intro {

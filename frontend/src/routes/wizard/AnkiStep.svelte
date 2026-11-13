@@ -6,7 +6,12 @@
   import { t, type MessageKey } from "../../lib/i18n.svelte";
   import en from "../../lib/locales/en.json";
 
-  let { onback, onnext }: { onback: () => void; onnext: () => void } = $props();
+  /** `settings`: Settings → Anki; every action here saves itself, so no footer. */
+  let {
+    onback,
+    onnext = () => {},
+    settings = false,
+  }: { onback?: () => void; onnext?: () => void; settings?: boolean } = $props();
 
   const setup = new AnkiSetup();
   void setup.load();
@@ -330,7 +335,9 @@
   {/if}
 {/if}
 
-<StepNav {hint} {onback} {onnext} nextDisabled={!setup.ready} />
+{#if !settings}
+  <StepNav {hint} {onback} {onnext} nextDisabled={!setup.ready} />
+{/if}
 
 <style>
   .intro {

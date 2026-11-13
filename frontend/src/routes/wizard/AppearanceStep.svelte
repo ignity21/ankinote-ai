@@ -3,7 +3,12 @@
   import { t, type MessageKey } from "../../lib/i18n.svelte";
   import { palettes, theme, type Mode } from "../../lib/theme.svelte";
 
-  let { onback, onnext }: { onback: () => void; onnext: () => void } = $props();
+  /** `settings`: Settings → Appearance; choices apply as they're made, so no footer. */
+  let {
+    onback,
+    onnext = () => {},
+    settings = false,
+  }: { onback?: () => void; onnext?: () => void; settings?: boolean } = $props();
 
   const modes: Mode[] = ["system", "light", "dark"];
 
@@ -80,9 +85,17 @@
   {/if}
 </fieldset>
 
-<StepNav {onback} onskip={skip} {onnext} hint={t("appearance.skipNote")} />
+{#if settings}
+  <p class="note browser">{t("appearance.browserNote")}</p>
+{:else}
+  <StepNav {onback} onskip={skip} {onnext} hint={t("appearance.skipNote")} />
+{/if}
 
 <style>
+  .browser {
+    margin-top: 20px;
+  }
+
   .intro {
     max-width: 62ch;
     margin: 0 0 20px;

@@ -1,14 +1,23 @@
 <script lang="ts">
+  import { untrack } from "svelte";
+  import SaveBar from "../../components/SaveBar.svelte";
   import StepNav from "../../components/StepNav.svelte";
   import { t, type MessageKey } from "../../lib/i18n.svelte";
   import { LanguageSetup } from "../../lib/languageSetup.svelte";
   import { ENDONYM, LANG_TAG, SAMPLE_MEANING, SAMPLE_WORD, sameLanguage } from "../../lib/languages";
   import en from "../../lib/locales/en.json";
 
-  let { onback, onnext }: { onback: () => void; onnext: () => void } = $props();
+  /** `settings`: Settings → Languages, where the footer saves instead of moving on. */
+  let {
+    onback,
+    onnext = () => {},
+    settings = false,
+  }: { onback?: () => void; onnext?: () => void; settings?: boolean } = $props();
 
   const setup = new LanguageSetup();
-  void setup.load();
+  // Settings shows what's saved; only the wizard guesses from the browser.
+  void setup.load({ guess: untrack(() => !settings) });
+  let justSaved = $state(false);
 
   const options = $derived(setup.options);
   const beta = $derived(options?.targets.find((o) => o.id === setup.target)?.beta ?? false);
@@ -38,7 +47,7 @@
   }
 </script>
 
-<p class="intro">{t("languages.intro")}</p>
+<p class="intro">{t(settings ? "languages.introSettings" : "languages.intro")}</p>
 
 {#if setup.loadError}
   <p class="error" role="alert">{t("languages.err.load")}</p>
@@ -115,7 +124,20 @@
   {#if errorText}<p class="error" role="alert">{errorText}</p>{/if}
 {/if}
 
-<StepNav {onback} {hint} onnext={next} nextDisabled={!setup.ready} busy={setup.saving} />
+{#if settings}
+  {#if setup.saved}
+    <SaveBar
+      onsave={async () => (justSaved = await setup.save())}
+      changed={setup.changed}
+      canSave={setup.ready}
+      busy={setup.saving}
+      saved={justSaved}
+      {hint}
+    />
+  {/if}
+{:else}
+  <StepNav {onback} {hint} onnext={next} nextDisabled={!setup.ready} busy={setup.saving} />
+{/if}
 
 <style>
   .intro {

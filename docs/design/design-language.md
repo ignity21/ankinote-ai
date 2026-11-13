@@ -176,6 +176,21 @@ it.
   The live editor lists the same errors without the button: fix them in the
   form, or apply the edit first.
 
+## Settings
+
+Built 2026-11-13: the wizard's steps without the walk-through. A section
+list on the left (Models, Anki, Languages, Appearance; a strip of chips on
+a phone), each section at its own address (`/settings/models` …), so a
+failure on the Generate page that Settings can fix ends with a link to the
+right section ("Open Settings → Models"). Models and Languages end in a
+Save bar instead of Back / Next: Save is enabled only when something
+differs from what's saved (and, for models, the change was tested), and the
+bar says "Saved." afterwards. Anki's actions save as they happen, and
+Appearance applies live (kept in the browser), so neither has a Save.
+Leaving a section drops its unsaved changes. Settings shows the saved
+languages as they are; only the wizard guesses the native language from
+the browser. "Run the setup wizard again" sits under the list.
+
 ## First-run wizard
 
 Five steps. Desktop and tablet show a step list on the left (done steps can

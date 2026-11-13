@@ -1,6 +1,6 @@
 /**
  * State for "Languages": the native language cards explain in and the
- * target language they teach. Shared by the wizard and, later, Settings.
+ * target language they teach. Shared by the wizard and Settings → Languages.
  */
 import { api, ApiError, type Languages } from "./api";
 import { browserNative, sameLanguage } from "./languages";
@@ -16,12 +16,18 @@ export class LanguageSetup {
   saving = $state(false);
   /** Server error code: same_language, not_target, not_native, or "server". */
   failure = $state("");
+  /** The pair in settings.json. */
+  saved = $state<{ native: string; target: string } | null>(null);
 
   readonly ready = $derived(
     this.native !== null && this.target !== null && !sameLanguage(this.native, this.target),
   );
+  readonly changed = $derived(
+    this.saved !== null && (this.native !== this.saved.native || this.target !== this.saved.target),
+  );
 
-  async load() {
+  /** `guess`: a fresh install starts from the browser's language (the wizard). */
+  async load({ guess = true } = {}) {
     try {
       this.options = await api.languages();
     } catch {
@@ -29,14 +35,15 @@ export class LanguageSetup {
       return;
     }
     const { native, target, natives, targets } = this.options;
+    this.saved = { native, target };
     this.native = natives.includes(native) ? native : null;
     this.target = targets.some((t) => t.id === target) ? target : null;
 
     // The factory pair is what nobody chose yet: start from the browser's
     // language instead, so an English reader isn't offered Chinese first.
-    const guess = browserNative();
-    if (native === FACTORY.native && target === FACTORY.target && guess && natives.includes(guess)) {
-      this.native = guess;
+    const browser = guess ? browserNative() : null;
+    if (native === FACTORY.native && target === FACTORY.target && browser && natives.includes(browser)) {
+      this.native = browser;
     }
     if (this.native && this.target && sameLanguage(this.native, this.target)) this.target = null;
   }
@@ -58,7 +65,8 @@ export class LanguageSetup {
     this.saving = true;
     this.failure = "";
     try {
-      await api.patchSettings({ native_language: this.native!, target_language: this.target! });
+      const settings = await api.patchSettings({ native_language: this.native!, target_language: this.target! });
+      this.saved = { native: settings.defaults.native_language, target: settings.defaults.target_language };
       return true;
     } catch (error) {
       this.failure = error instanceof ApiError && error.status === 422 ? error.code : "server";
