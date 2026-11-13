@@ -76,6 +76,12 @@ GCP project.
    missing image or audio is skipped without an error, and the result panel
    says which capability is not configured. Verify the card templates render
    cleanly with empty audio and image fields.
+   Word cards done 2026-11-13 on `feat/1.0`: `WordGenerator` returns media
+   plus `MediaGap`s (`not_set_up` / `failed`) instead of raising; audio is all
+   or nothing per note; `optional_speech_service` means no audio when there is
+   no speech route and no `GOOGLE_TTS_KEY`. Empty audio/image fields render
+   cleanly (`tests/test_card_render.py`). Phrase, sentence and STEM cards
+   still fail without speech.
 3. **One-key presets.** In Settings and the wizard: "Gemini (one key)" and
    "OpenAI (one key)" fill the text, image, and TTS routes from a single
    pasted key. Existing per-route profiles stay for advanced use.
@@ -126,6 +132,15 @@ GCP project.
    be tried.
    Step 3 (Languages) built 2026-11-13: `GET /api/languages` plus the
    existing `PATCH /api/settings`; see Phase 2 item 3.
+   Step 4 (Appearance) built 2026-11-13, frontend only (theme kept in the
+   browser). Step 5 (First card) built 2026-11-13: `POST /api/cards/word`
+   generates without touching Anki and keeps an in-memory draft (newest 50;
+   media at `GET /api/cards/drafts/{id}/media/{name}`); `POST
+   /api/cards/drafts/{id}/save` writes it (creating the note type if missing)
+   and reports the post-write AnkiWeb sync. Previews come from
+   `ankinote/card_render.py`, a renderer for the template syntax the note
+   types use. Fixed on the way: an image route turned off came back on after
+   reload whenever an image profile remained.
 5. **CLI/TUI parity.** The TUI's TTS menu and `apply_env` follow the new TTS
    setting so both front ends keep sharing `settings.json`.
 

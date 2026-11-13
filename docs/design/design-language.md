@@ -170,6 +170,17 @@ be revisited); phone shows "Step 2 of 5" with a segmented progress bar.
    switches; it isn't in `settings.json` yet.
 5. **First card.** Generate a sample word, preview it, save it to Anki; the
    wizard ends on the saved confirmation.
+   Built 2026-11-13: the word field starts with the target language's sample
+   word. Generating shows elapsed seconds and that it usually takes 20–60
+   seconds; nothing is written to Anki until "Save to Anki". The preview
+   renders the note type's real templates and CSS in a sandboxed frame (a
+   nonce-only CSP lets just the preview's own script run, to play sounds and
+   size the frame), switching card (Recognition / Recall / Spelling) and
+   front / back, in night mode when the app is dark. Missing media is listed
+   above the preview ("No image: …"). After saving, the step says which deck
+   took the note and whether AnkiWeb synced; Finish stays disabled until a
+   card is saved and then opens the Generate workspace. On a phone the order
+   is word, preview, save, so the card is seen before it's saved.
 
 The canvas mock still shows six steps with a separate "Prepare note types"
 step; the flow above supersedes it.

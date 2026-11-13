@@ -1,17 +1,18 @@
 <script lang="ts">
   import Pane from "../components/Pane.svelte";
-  import StepNav from "../components/StepNav.svelte";
   import AnkiStep from "./wizard/AnkiStep.svelte";
   import AppearanceStep from "./wizard/AppearanceStep.svelte";
+  import FirstCardStep from "./wizard/FirstCardStep.svelte";
   import LanguageStep from "./wizard/LanguageStep.svelte";
   import ModelStep from "./wizard/ModelStep.svelte";
   import { t, type MessageKey } from "../lib/i18n.svelte";
+  import { router } from "../lib/router.svelte";
 
-  const steps: { key: MessageKey; skippable?: boolean }[] = [
+  const steps: { key: MessageKey }[] = [
     { key: "wizard.step.model" },
     { key: "wizard.step.anki" },
     { key: "wizard.step.languages" },
-    { key: "wizard.step.appearance", skippable: true },
+    { key: "wizard.step.appearance" },
     { key: "wizard.step.first" },
   ];
 
@@ -22,7 +23,8 @@
 
   function next() {
     done = Math.max(done, current + 1);
-    if (!last) current += 1;
+    if (last) router.go("/");
+    else current += 1;
   }
 
   function back() {
@@ -65,13 +67,7 @@
       {:else if current === 3}
         <AppearanceStep onback={back} onnext={next} />
       {:else}
-        <p class="empty">{t("page.soon")}</p>
-        <StepNav
-          onback={back}
-          onskip={step.skippable ? next : undefined}
-          onnext={next}
-          {last}
-        />
+        <FirstCardStep onback={back} onnext={next} />
       {/if}
     </div>
   </Pane>

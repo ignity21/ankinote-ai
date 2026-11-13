@@ -18,7 +18,7 @@ from ankinote.services.ai import (
 )
 from ankinote.services.anki import AnkiCollectionClient, TemplateUpsert
 from ankinote.services.anki_batch import anki_write_batch
-from ankinote.services.tts import TTS_LANG_CODES, GoogleTTSService, SpeechService
+from ankinote.services.tts import SpeechService
 
 from .generator import WordGenerator, WordMediaFiles
 from .models import Example, Sense, WordModel, WordNoteType
@@ -37,7 +37,7 @@ class WordCardData:
 class MediaReferences:
     """References to media files stored in Anki."""
 
-    headword_audio: str
+    headword_audio: str | None
     example_audios: list[str]
     images: dict[int, str]
 
@@ -47,7 +47,7 @@ class WordCollection:
 
     def __init__(
         self,
-        anki_client: AnkiCollectionClient,
+        anki_client: AnkiCollectionClient | None,
         *,
         native_language: Language,
         target_language: Language,
@@ -65,9 +65,8 @@ class WordCollection:
         self._target_language = target_language
         self._anki_client = anki_client
         self._reasoning_effort = reasoning_effort
-        self._tts_service: SpeechService = tts_service or GoogleTTSService(
-            TTS_LANG_CODES[target_language]
-        )
+        # None: cards are made without audio.
+        self._tts_service = tts_service
         self._generator = WordGenerator(
             tts_service=self._tts_service,
             text_service=text_service,
@@ -79,32 +78,16 @@ class WordCollection:
         else:
             self._convert_target_lang_text = lambda value: value
 
-    async def __aenter__(self) -> Self:
-        await self._tts_service.warmup()
-        await self._ensure_note_type_exists()
-        await self._ensure_deck_exists()
-        return self
+    @property
+    def _anki(self) -> AnkiCollectionClient:
+        if self._anki_client is None:
+            raise RuntimeError("This word collection was built without Anki")
+        return self._anki_client
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        self._tts_service.clear_cache()
-
-    async def ensure_in_anki(self) -> None:
-        """Create or update this note type and its deck in Anki.
-
-        Idempotent equivalent of the CLI ``init`` command: creates the note
-        type with the current fields, templates and styling when missing, or
-        refreshes templates, styling and missing fields when it already exists,
-        then ensures the deck is present. Does not start TTS or LLM services,
-        so it is safe to call from the GUI setup flow.
-        """
-        async with anki_write_batch(self._anki_client):
-            await self._ensure_note_type_exists()
-            await self._ensure_deck_exists()
-
-    async def _ensure_note_type_exists(self) -> None:
-        fields = [field.name for field in dataclasses.fields(WordNoteType)]
-        css = load_card_style()
-        templates = [
+    @staticmethod
+    def card_templates() -> list[dict[str, str]]:
+        """The note type's card templates, as Anki stores them."""
+        return [
             {
                 "Name": "Recognition",
                 "Front": load_template("front.html"),
@@ -121,9 +104,38 @@ class WordCollection:
                 "Back": load_template("spelling_back.html"),
             },
         ]
-        exists = await self._anki_client.models.exists(self.notetype_name)
+
+    async def __aenter__(self) -> Self:
+        if self._tts_service is not None:
+            await self._tts_service.warmup()
+        await self._ensure_note_type_exists()
+        await self._ensure_deck_exists()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        if self._tts_service is not None:
+            self._tts_service.clear_cache()
+
+    async def ensure_in_anki(self) -> None:
+        """Create or update this note type and its deck in Anki.
+
+        Idempotent equivalent of the CLI ``init`` command: creates the note
+        type with the current fields, templates and styling when missing, or
+        refreshes templates, styling and missing fields when it already exists,
+        then ensures the deck is present. Does not start TTS or LLM services,
+        so it is safe to call from the GUI setup flow.
+        """
+        async with anki_write_batch(self._anki):
+            await self._ensure_note_type_exists()
+            await self._ensure_deck_exists()
+
+    async def _ensure_note_type_exists(self) -> None:
+        fields = [field.name for field in dataclasses.fields(WordNoteType)]
+        css = load_card_style()
+        templates = self.card_templates()
+        exists = await self._anki.models.exists(self.notetype_name)
         if not exists:
-            await self._anki_client.models.create(
+            await self._anki.models.create(
                 model_name=self.notetype_name,
                 fields=fields,
                 templates=templates,
@@ -134,8 +146,8 @@ class WordCollection:
             return
 
         # Ensure new fields (e.g. target_language) are added for existing note types
-        await self._anki_client.models.ensure_fields(self.notetype_name, fields)
-        await self._anki_client.models.update_templates(
+        await self._anki.models.ensure_fields(self.notetype_name, fields)
+        await self._anki.models.update_templates(
             self.notetype_name,
             [
                 TemplateUpsert(
@@ -146,11 +158,11 @@ class WordCollection:
                 for template in templates
             ],
         )
-        await self._anki_client.models.update_styling(self.notetype_name, css)
+        await self._anki.models.update_styling(self.notetype_name, css)
         logger.success(f"Updated note type: {self.notetype_name}")
 
     async def _ensure_deck_exists(self) -> int:
-        deck_id = await self._anki_client.decks.create(self.deck_name)
+        deck_id = await self._anki.decks.create(self.deck_name)
         logger.success(f"Ensured deck exists: {self.deck_name}")
         return deck_id
 
@@ -159,27 +171,62 @@ class WordCollection:
         word: str,
         tags: list[str] | None = None,
     ) -> list[int]:
-        logger.info(f"Starting generation for word: {word}")
-        word_models = await self._generate_word_models(word)
-
-        note_ids: list[int] = []
-        for word_model in word_models:
-            media = await self._generator.generate_media(
-                word_model=word_model,
-                target_lang=self._target_language,
-            )
-            card_data = WordCardData(model=word_model, media=media)
-            note_ids.append(
-                await self._add_or_update_note(
-                    card_data=card_data,
-                    tags=tags or [self._target_language.value, "AI-generated", "Word"],
-                )
-            )
-
+        cards = await self.generate_cards(word)
+        note_ids = [await self.save_card(card, tags) for card in cards]
         logger.success(
             f"Completed generation for '{word}': {len(note_ids)} note(s) created/updated"
         )
         return note_ids
+
+    async def generate_cards(self, word: str) -> list[WordCardData]:
+        """Generate the notes for ``word`` (one per part of speech), unsaved."""
+        logger.info(f"Starting generation for word: {word}")
+        cards: list[WordCardData] = []
+        for word_model in await self._generate_word_models(word):
+            media = await self._generator.generate_media(
+                word_model=word_model,
+                target_lang=self._target_language,
+            )
+            cards.append(WordCardData(model=word_model, media=media))
+        return cards
+
+    async def save_card(self, card: WordCardData, tags: list[str] | None = None) -> int:
+        """Add the card's note, or update the one with its lemma and POS."""
+        return await self._add_or_update_note(
+            card_data=card,
+            tags=tags or [self._target_language.value, "AI-generated", "Word"],
+        )
+
+    def note_fields(self, card: WordCardData) -> dict[str, str]:
+        """The note's fields as Anki will store them."""
+        return self._convert_to_note_type(card.model, self.media_names(card))
+
+    def media_files(self, card: WordCardData) -> dict[str, bytes]:
+        """The card's media under the names its fields refer to."""
+        names, media = self.media_names(card), card.media
+        files: dict[str, bytes] = {}
+        if names.headword_audio and media.headword_audio is not None:
+            files[names.headword_audio] = media.headword_audio
+        files.update(zip(names.example_audios, media.example_audios, strict=True))
+        files.update({names.images[i]: media.images[i] for i in names.images})
+        return files
+
+    @staticmethod
+    def media_names(card: WordCardData) -> MediaReferences:
+        """Names derive from lemma and POS, so a regenerated note reuses them."""
+        word_model, media = card.model, card.media
+        word_base = f"{word_model.lemma}_{word_model.part_of_speech}"
+        word_hash = hashlib.md5(word_base.encode()).hexdigest()[:12]
+        return MediaReferences(
+            headword_audio=f"{word_hash}.mp3"
+            if media.headword_audio is not None
+            else None,
+            example_audios=[
+                f"{word_hash}_ex{index}.mp3"
+                for index in range(len(media.example_audios))
+            ],
+            images={index: f"{word_hash}_img{index}.png" for index in media.images},
+        )
 
     async def _generate_word_models(self, word: str) -> list[WordModel]:
         return await self._generator.generate_word_data(
@@ -194,7 +241,7 @@ class WordCollection:
         card_data: WordCardData,
         tags: list[str],
     ) -> int:
-        async with anki_write_batch(self._anki_client):
+        async with anki_write_batch(self._anki):
             word_model = card_data.model
             logger.info(
                 f"Adding/updating note {word_model.lemma} "
@@ -203,7 +250,7 @@ class WordCollection:
 
             media_refs = await self._store_media_files(card_data)
             note_data = self._convert_to_note_type(word_model, media_refs)
-            note_id = await self._anki_client.notes.find(
+            note_id = await self._anki.notes.find(
                 deck_name=self.deck_name,
                 unique_fields={
                     "lemma": word_model.lemma,
@@ -212,12 +259,12 @@ class WordCollection:
             )
 
             if note_id is not None:
-                await self._anki_client.notes.update_fields(note_id, note_data)
-                await self._anki_client.notes.update_tags(note_id, tags)
+                await self._anki.notes.update_fields(note_id, note_data)
+                await self._anki.notes.update_tags(note_id, tags)
                 logger.info(f"Updated note {note_id}")
                 return note_id
 
-            note_id = await self._anki_client.notes.add(
+            note_id = await self._anki.notes.add(
                 deck_name=self.deck_name,
                 model_name=self.notetype_name,
                 fields=note_data,
@@ -228,33 +275,9 @@ class WordCollection:
             return note_id
 
     async def _store_media_files(self, card_data: WordCardData) -> MediaReferences:
-        word_model = card_data.model
-        media = card_data.media
-        word_base = f"{word_model.lemma}_{word_model.part_of_speech}"
-        word_hash = hashlib.md5(word_base.encode()).hexdigest()[:12]
-
-        headword_audio_name = f"{word_hash}.mp3"
-        await self._anki_client.media.store_file(
-            headword_audio_name, media.headword_audio
-        )
-
-        example_audio_names: list[str] = []
-        for index, audio in enumerate(media.example_audios):
-            name = f"{word_hash}_ex{index}.mp3"
-            await self._anki_client.media.store_file(name, audio)
-            example_audio_names.append(name)
-
-        image_names: dict[int, str] = {}
-        for index, image in media.images.items():
-            name = f"{word_hash}_img{index}.png"
-            await self._anki_client.media.store_file(name, image)
-            image_names[index] = name
-
-        return MediaReferences(
-            headword_audio=headword_audio_name,
-            example_audios=example_audio_names,
-            images=image_names,
-        )
+        for name, data in self.media_files(card_data).items():
+            await self._anki.media.store_file(name, data)
+        return self.media_names(card_data)
 
     def _convert_to_note_type(
         self,
@@ -266,7 +289,9 @@ class WordCollection:
             "lemma": word_model.lemma,
             "part_of_speech": word_model.part_of_speech,
             "pronunciation": word_model.pronunciation or "",
-            "headword_audio": f"[sound:{media_refs.headword_audio}]",
+            "headword_audio": f"[sound:{media_refs.headword_audio}]"
+            if media_refs.headword_audio
+            else "",
             "difficulty": word_model.difficulty,
             "morphology": self._format_text_block(word_model.morphology),
             "core_meaning": self._format_core_meaning(word_model.core_meaning),

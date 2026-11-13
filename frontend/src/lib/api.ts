@@ -112,6 +112,26 @@ export type Languages = {
   natives: string[];
   targets: { id: string; beta: boolean }[];
 };
+/** Media a card goes without: no model for it, or the model failed. */
+export type MediaGap = { kind: "audio" | "image"; reason: "not_set_up" | "failed"; detail: string };
+
+/** One card of a note, both sides rendered from the real Anki templates. */
+export type CardSide = { name: string; front: string; back: string };
+
+/** A generated, unsaved note; `note_id` is set once it's saved. */
+export type DraftNote = {
+  id: string;
+  lemma: string;
+  part_of_speech: string;
+  note_type: string;
+  deck: string;
+  gaps: MediaGap[];
+  css: string;
+  cards: CardSide[];
+  note_id: number | null;
+};
+
+export type SavedNote = { note_id: number; deck: string; sync: SyncView | null };
 
 /** A 422 from the server about one route's draft (unknown provider, missing key…). */
 export class DraftError extends Error {
@@ -177,4 +197,7 @@ export const api = {
     request<AnkiStatus>("POST", "/api/anki/full-sync", { direction }),
   noteTypes: () => request<NoteTypeItem[]>("GET", "/api/anki/note-types"),
   prepareNoteTypes: () => request<NoteTypeItem[]>("POST", "/api/anki/note-types"),
+  generateWord: (word: string) =>
+    request<{ notes: DraftNote[] }>("POST", "/api/cards/word", { word }),
+  saveDraft: (id: string) => request<SavedNote>("POST", `/api/cards/drafts/${id}/save`),
 };

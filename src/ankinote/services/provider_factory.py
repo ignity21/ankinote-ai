@@ -1,5 +1,6 @@
 """Build AI services from provider profiles, shared by the CLI and GUI."""
 
+from ankinote.config import envs
 from ankinote.consts import Language
 from ankinote.model_presets import FAL_VENDOR, GOOGLE_TTS_VENDOR
 from ankinote.services.ai import (
@@ -94,3 +95,16 @@ def speech_service_for(settings: Settings, language: Language) -> SpeechService:
     if profile is None:
         return GoogleTTSService(TTS_LANG_CODES[language])
     return build_speech_service(profile, language)
+
+
+def optional_speech_service(
+    settings: Settings, language: Language
+) -> SpeechService | None:
+    """Like :func:`speech_service_for`, but ``None`` when nothing can speak.
+
+    For cards that work without audio (word cards): no speech route and no
+    ``GOOGLE_TTS_KEY`` means "not set up", not an error per card.
+    """
+    if active_profile(settings, "speech") is None and not envs.GOOGLE_TTS_KEY:
+        return None
+    return speech_service_for(settings, language)

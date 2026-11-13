@@ -580,8 +580,11 @@ def _settings_from_current_shape(data: dict) -> Settings:
         active_text_provider=data.get("active_text_provider")
         or next(iter(text_providers), DEFAULT_TEXT_PROFILE_NAME),
         image_providers=image_providers or _default_image_providers(),
-        active_image_provider=data.get("active_image_provider")
-        or next(iter(image_providers), DEFAULT_IMAGE_PROFILE_NAME),
+        # "" is the image route turned off; only a file without the key
+        # (0.x before routes could be off) falls back to the first profile.
+        active_image_provider=data["active_image_provider"]
+        if "active_image_provider" in data
+        else next(iter(image_providers), DEFAULT_IMAGE_PROFILE_NAME),
         speech_providers=speech_providers,
         active_speech_provider=active_speech_provider,
         image_size=data.get("image_size", 512),

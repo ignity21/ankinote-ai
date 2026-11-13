@@ -2,12 +2,26 @@
 
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 from importlib.resources import files
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 from pydantic import BaseModel
 
 from ankinote.consts import Language
+
+
+@dataclass(frozen=True)
+class MediaGap:
+    """Media a card goes without, and why; the card is still made.
+
+    ``not_set_up``: no model for it. ``failed``: the model was asked and
+    errored; ``detail`` carries its message.
+    """
+
+    kind: Literal["audio", "image"]
+    reason: Literal["not_set_up", "failed"]
+    detail: str = ""
 
 
 def load_card_style(package: str) -> str:

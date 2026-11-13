@@ -2,6 +2,7 @@
 
 import pytest
 
+from ankinote.collections.common import MediaGap
 from ankinote.collections.phrase.generator import PhraseGenerator
 from ankinote.collections.phrase.models import Example as PhraseExample
 from ankinote.collections.phrase.models import PhraseModel
@@ -139,6 +140,83 @@ class TestWordGenerator:
 
         assert media.images == {}
         assert images.calls == []
+
+    @pytest.mark.asyncio
+    async def test_no_speech_service_makes_a_card_without_audio(self):
+        generator = WordGenerator(
+            tts_service=None,
+            text_service=FakeTextService(),
+            image_service=None,
+            text_model="text-model",
+        )
+
+        media = await generator.generate_media(_umbrella(), Language.ENGLISH)
+
+        assert media.headword_audio is None
+        assert media.example_audios == []
+        assert media.gaps == [MediaGap("audio", "not_set_up")]
+
+    @pytest.mark.asyncio
+    async def test_failing_speech_drops_all_audio_and_says_why(self):
+        generator = WordGenerator(
+            tts_service=FailingSpeechSynthesizer(fail_on="Take an umbrella."),
+            text_service=FakeTextService(),
+            image_service=FakeImageService(),
+            text_model="text-model",
+        )
+
+        media = await generator.generate_media(_umbrella(), Language.ENGLISH)
+
+        # Half the audio would leave example buttons pointing at nothing.
+        assert media.headword_audio is None
+        assert media.example_audios == []
+        assert media.gaps == [MediaGap("audio", "failed", "quota exceeded")]
+        assert media.images == {0: b"image:1"}
+
+    @pytest.mark.asyncio
+    async def test_failing_image_keeps_the_card_and_says_why(self):
+        generator = WordGenerator(
+            tts_service=FakeSpeechSynthesizer(),
+            text_service=FakeTextService(),
+            image_service=FailingImageService(),
+            text_model="text-model",
+        )
+
+        media = await generator.generate_media(_umbrella(), Language.ENGLISH)
+
+        assert media.images == {}
+        assert media.headword_audio == b"audio:umbrella"
+        assert media.gaps == [MediaGap("image", "failed", "billing required")]
+
+
+class FailingSpeechSynthesizer:
+    def __init__(self, fail_on: str) -> None:
+        self._fail_on = fail_on
+
+    async def synthesize(self, text: str) -> bytes:
+        if text == self._fail_on:
+            raise RuntimeError("quota exceeded")
+        return f"audio:{text}".encode()
+
+
+class FailingImageService:
+    async def generate_image(self, *, prompt: str) -> bytes:
+        raise RuntimeError("billing required")
+
+
+def _umbrella() -> WordModel:
+    return WordModel(
+        lemma="umbrella",
+        part_of_speech="noun",
+        difficulty="A2",
+        core_meaning=Sense(
+            target_text="a folding canopy that keeps off rain",
+            native_text="伞",
+            image_prompt="A man holding an open blue umbrella in the rain",
+            is_visualizable=True,
+        ),
+        examples=[WordExample(sentence="Take an umbrella.", translation="带伞。")],
+    )
 
 
 class TestPhraseGenerator:

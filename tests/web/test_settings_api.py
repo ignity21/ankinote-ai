@@ -231,6 +231,18 @@ def test_put_models_turns_routes_off(client: TestClient) -> None:
     assert saved.text_providers["DeepSeek"].base_url == "https://api.deepseek.com"
 
 
+def test_image_route_turned_off_stays_off_after_reload(client: TestClient) -> None:
+    """Turning images off kept the Gemini image profile, which loading revived."""
+    client.put("/api/models", json=_gemini_routes())
+    routes = _gemini_routes(key=None)
+    routes["image"] = None
+
+    client.put("/api/models", json=routes)
+
+    assert "Gemini" in load_settings().image_providers
+    assert client.get("/api/settings").json()["models"]["image"] is None
+
+
 def test_route_from_a_text_only_provider_is_rejected(client: TestClient) -> None:
     routes = {
         "text": {"provider": "deepseek", "model": "deepseek-flash", "api_key": "sk"},

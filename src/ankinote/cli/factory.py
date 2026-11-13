@@ -23,6 +23,7 @@ from ankinote.services.anki_factory import anki_backend_scope, create_anki_clien
 from ankinote.services.provider_factory import (
     build_image_service,
     build_text_service,
+    optional_speech_service,
     speech_service_for,
 )
 from ankinote.settings import ProviderProfile, Settings, load_settings
@@ -138,7 +139,7 @@ def build_word_collection(
             model=image_model,
         ),
         reasoning_effort=options.reasoning_effort,
-        tts_service=speech_service_for(settings, options.target_language),
+        tts_service=optional_speech_service(settings, options.target_language),
     )
 
 

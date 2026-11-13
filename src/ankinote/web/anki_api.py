@@ -131,7 +131,7 @@ async def _switch() -> None:
         raise _fail(409, _open_error["code"], _open_error["detail"]) from exc
 
 
-def _sync_out(snapshot: SyncSnapshot) -> dict:
+def sync_out(snapshot: SyncSnapshot) -> dict:
     return {
         "state": snapshot.state.value,
         "initialized": snapshot.initialized,
@@ -192,7 +192,7 @@ async def _status() -> dict:
         "open_error": _open_error,
         "account": driver.account if driver else None,
         "account_managed": bool(driver and driver.externally_configured),
-        "sync": _sync_out(service.status) if service else None,
+        "sync": sync_out(service.status) if service else None,
         "busy": _full_sync_running(),
         "writable": service is None or not service.write_blocked,
         "local_cards": await _local_cards(runtime) if runtime else None,
@@ -336,7 +336,7 @@ async def full_sync(body: FullSyncIn) -> dict:
     return await _status()
 
 
-def _note_type_error(exc: Exception) -> HTTPException:
+def note_type_error(exc: Exception) -> HTTPException:
     if isinstance(exc, SyncWriteBlocked):
         return _fail(409, "write_blocked")
     if isinstance(exc, AnkiTransportError):
@@ -358,7 +358,7 @@ def _note_type_out(spec, state: str) -> dict:
     }
 
 
-async def _ready_backend() -> None:
+async def ready_backend() -> None:
     """Fail fast (3 s, no retries) when Anki Desktop isn't answering."""
     init_session()
     if resolve_backend() == CONNECT_BACKEND:
@@ -367,12 +367,12 @@ async def _ready_backend() -> None:
 
 @router.get("/note-types")
 async def note_types() -> list[dict]:
-    await _ready_backend()
+    await ready_backend()
     try:
         client = create_anki_client()
         statuses = [await load_status(client, spec) for spec in build_specs()]
     except Exception as exc:
-        raise _note_type_error(exc) from exc
+        raise note_type_error(exc) from exc
     return [_note_type_out(s.spec, s.state) for s in statuses]
 
 
@@ -384,7 +384,7 @@ async def prepare_note_types() -> list[dict]:
     Updating adds fields, templates and styling; it never removes anything,
     so existing notes, cards and review history stay as they are.
     """
-    await _ready_backend()
+    await ready_backend()
     result = {"missing": "created", "update": "updated", "synced": "unchanged"}
     out = []
     try:
@@ -398,5 +398,5 @@ async def prepare_note_types() -> list[dict]:
                 item["result"] = result[before.state]
                 out.append(item)
     except Exception as exc:
-        raise _note_type_error(exc) from exc
+        raise note_type_error(exc) from exc
     return out

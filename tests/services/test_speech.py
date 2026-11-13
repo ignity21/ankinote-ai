@@ -9,10 +9,15 @@ from typing import Any
 import httpx
 import pytest
 
+from ankinote.config import envs
 from ankinote.consts import Language
 from ankinote.model_presets import PRESETS
 from ankinote.services import speech
-from ankinote.services.provider_factory import build_speech_service, speech_service_for
+from ankinote.services.provider_factory import (
+    build_speech_service,
+    optional_speech_service,
+    speech_service_for,
+)
 from ankinote.services.speech import (
     GeminiSpeechService,
     OpenAISpeechService,
@@ -200,4 +205,15 @@ def test_speech_service_follows_the_active_speech_route() -> None:
 def test_without_a_speech_route_falls_back_to_google_cloud_tts() -> None:
     assert isinstance(
         speech_service_for(Settings(), Language.ENGLISH), GoogleTTSService
+    )
+
+
+def test_no_speech_route_and_no_cloud_key_means_no_speech() -> None:
+    assert optional_speech_service(Settings(), Language.ENGLISH) is None
+
+
+def test_cloud_key_alone_still_speaks(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(envs, "GOOGLE_TTS_KEY", "cloud-key")
+    assert isinstance(
+        optional_speech_service(Settings(), Language.ENGLISH), GoogleTTSService
     )

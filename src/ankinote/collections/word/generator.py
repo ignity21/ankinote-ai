@@ -9,7 +9,11 @@ from typing import cast
 
 from loguru import logger
 
-from ankinote.collections.common import create_prompt_loader, strip_phonetic_annotations
+from ankinote.collections.common import (
+    MediaGap,
+    create_prompt_loader,
+    strip_phonetic_annotations,
+)
 from ankinote.consts import RUBY_ANNOTATION_LANGUAGES, Language
 from ankinote.services.ai import (
     DISABLE_REASONING,
@@ -23,11 +27,16 @@ from .models import Sense, WordModel
 
 @dataclass
 class WordMediaFiles:
-    """Media files generated for a single WordModel."""
+    """Media files generated for a single WordModel.
 
-    headword_audio: bytes
+    Audio is all or nothing: ``headword_audio`` is None and
+    ``example_audios`` empty when speech is off or failed; ``gaps`` says so.
+    """
+
+    headword_audio: bytes | None
     example_audios: list[bytes] = field(default_factory=list)
     images: dict[int, bytes] = field(default_factory=dict)
+    gaps: list[MediaGap] = field(default_factory=list)
 
 
 _LANGUAGE_TO_FILENAME: dict[Language, str] = {
@@ -151,7 +160,7 @@ class WordGenerator:
 
     def __init__(
         self,
-        tts_service: SpeechSynthesizer,
+        tts_service: SpeechSynthesizer | None,
         text_service: TextGenerationService,
         image_service: ImageGenerationService | None,
         text_model: str,
@@ -185,70 +194,86 @@ class WordGenerator:
         word_model: WordModel,
         target_lang: Language,
     ) -> WordMediaFiles:
-        """Generate audio and optional images for a WordModel."""
+        """Generate audio and optional images for a WordModel.
+
+        Media never fails the card: what can't be made is left out and
+        recorded in ``gaps``.
+        """
         logger.info(
             f"Generating media for '{word_model.lemma}' ({word_model.part_of_speech})"
         )
-
-        headword_audio = await self._generate_audio(word_model.lemma, target_lang)
-        senses = [word_model.core_meaning]
-
-        try:
-            async with asyncio.TaskGroup() as tg:
-                example_tasks = [
-                    tg.create_task(self._generate_audio(example.sentence, target_lang))
-                    for example in word_model.examples
-                ]
-                image_tasks: dict[int, asyncio.Task[bytes]] = {}
-                if self._image_service is not None:
-                    for idx, sense in enumerate(senses):
-                        if not sense.is_visualizable:
-                            continue
-                        prompt = build_image_prompt(sense)
-                        if prompt is None:
-                            logger.warning(
-                                f"Skipping image for '{word_model.lemma}' "
-                                f"sense[{idx}]: no image_prompt"
-                            )
-                            continue
-                        image_tasks[idx] = tg.create_task(
-                            self._image_service.generate_image(prompt=prompt)
-                        )
-        except* Exception as exc_group:
-            messages = [str(sub_exc) for sub_exc in exc_group.exceptions]
-            for sub_exc in exc_group.exceptions:
-                logger.error(
-                    f"Error during media generation for '{word_model.lemma}': {sub_exc}",
-                    exc_info=sub_exc,
-                )
-            raise RuntimeError(
-                f"Media generation failed: {'; '.join(messages)}"
-            ) from exc_group
-
-        example_audios = [task.result() for task in example_tasks]
-        images: dict[int, bytes] = {}
-
-        for idx, task in image_tasks.items():
-            try:
-                images[idx] = task.result()
-                logger.debug(f"Generated image for sense[{idx}]")
-            except Exception as exc:
-                logger.warning(
-                    f"Image generation failed for '{word_model.lemma}' sense[{idx}]: {exc}"
-                )
-
+        texts = [
+            word_model.lemma,
+            *(example.sentence for example in word_model.examples),
+        ]
+        (audios, audio_gaps), (images, image_gaps) = await asyncio.gather(
+            self._generate_audios(texts, target_lang),
+            self._generate_images(word_model),
+        )
         logger.success(
             f"Media ready for '{word_model.lemma}': "
-            f"1 headword audio, {len(example_audios)} example(s), {len(images)} image(s)"
+            f"{len(audios)} audio clip(s), {len(images)} image(s)"
         )
-
         return WordMediaFiles(
-            headword_audio=headword_audio,
-            example_audios=example_audios,
+            headword_audio=audios[0] if audios else None,
+            example_audios=audios[1:],
             images=images,
+            gaps=[*audio_gaps, *image_gaps],
         )
 
-    async def _generate_audio(self, text: str, target_lang: Language) -> bytes:
+    async def _generate_audios(
+        self, texts: list[str], target_lang: Language
+    ) -> tuple[list[bytes], list[MediaGap]]:
+        """Audio for every text, or none (an example button with no sound is worse)."""
+        tts = self._tts_service
+        if tts is None:
+            return [], [MediaGap("audio", "not_set_up")]
         if target_lang in RUBY_ANNOTATION_LANGUAGES:
-            text = strip_phonetic_annotations(text)
-        return await self._tts_service.synthesize(text)
+            texts = [strip_phonetic_annotations(text) for text in texts]
+        results = await asyncio.gather(
+            *(tts.synthesize(text) for text in texts), return_exceptions=True
+        )
+        for result in results:
+            if isinstance(result, BaseException):
+                if not isinstance(result, Exception):
+                    raise result
+                logger.warning(f"Speech failed, card made without audio: {result}")
+                return [], [MediaGap("audio", "failed", str(result))]
+        return cast(list[bytes], results), []
+
+    async def _generate_images(
+        self, word_model: WordModel
+    ) -> tuple[dict[int, bytes], list[MediaGap]]:
+        image_service = self._image_service
+        if image_service is None:
+            return {}, []
+        prompts: dict[int, str] = {}
+        for idx, sense in enumerate([word_model.core_meaning]):
+            if not sense.is_visualizable:
+                continue
+            prompt = build_image_prompt(sense)
+            if prompt is None:
+                logger.warning(
+                    f"Skipping image for '{word_model.lemma}' sense[{idx}]: no image_prompt"
+                )
+                continue
+            prompts[idx] = prompt
+        results = await asyncio.gather(
+            *(image_service.generate_image(prompt=p) for p in prompts.values()),
+            return_exceptions=True,
+        )
+        images: dict[int, bytes] = {}
+        gaps: list[MediaGap] = []
+        for idx, result in zip(prompts, results, strict=True):
+            if isinstance(result, BaseException):
+                if not isinstance(result, Exception):
+                    raise result
+                logger.warning(
+                    f"Image failed for '{word_model.lemma}' sense[{idx}]: {result}"
+                )
+                gap = MediaGap("image", "failed", str(result))
+                if gap not in gaps:
+                    gaps.append(gap)
+            else:
+                images[idx] = result
+        return images, gaps

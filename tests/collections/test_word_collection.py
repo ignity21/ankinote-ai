@@ -5,8 +5,12 @@ from typing import cast
 
 import pytest
 
-from ankinote.collections.word.collection import MediaReferences, WordCollection
-from ankinote.collections.word.generator import build_image_prompt
+from ankinote.collections.word.collection import (
+    MediaReferences,
+    WordCardData,
+    WordCollection,
+)
+from ankinote.collections.word.generator import WordMediaFiles, build_image_prompt
 from ankinote.collections.word.models import Example, Sense, WordModel
 from ankinote.consts import Language
 from ankinote.services.ai import ImageGenerationService, TextGenerationService
@@ -410,3 +414,36 @@ async def test_ensure_note_type_exists_updates_existing_model():
     ]
     assert len(models.updated_templates) == 3
     assert models.updated_css is not None
+
+
+def test_card_without_audio_has_empty_audio_fields():
+    collection, _ = _build_collection(Language.ENGLISH)
+    card = WordCardData(
+        model=_build_model(),
+        media=WordMediaFiles(headword_audio=None, images={0: b"png"}),
+    )
+
+    note = collection.note_fields(card)
+
+    # Empty, so the templates' {{#headword_audio}} sections drop the button.
+    assert note["headword_audio"] == ""
+    assert "[sound:" not in note["examples"]
+    assert note["example_audio_refs"] == ""
+    assert list(collection.media_files(card).values()) == [b"png"]
+
+
+def test_media_files_match_the_names_in_the_fields():
+    collection, _ = _build_collection(Language.ENGLISH)
+    card = WordCardData(
+        model=_build_model(),
+        media=WordMediaFiles(
+            headword_audio=b"head", example_audios=[b"ex0"], images={0: b"png"}
+        ),
+    )
+
+    note = collection.note_fields(card)
+    files = collection.media_files(card)
+
+    assert sorted(files.values()) == [b"ex0", b"head", b"png"]
+    for name in files:
+        assert name in note["headword_audio"] + note["examples"] + note["image_refs"]
