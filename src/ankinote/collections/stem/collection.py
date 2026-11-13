@@ -2,10 +2,12 @@
 
 import hashlib
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Self
 
 from loguru import logger
 
+from ankinote.collections.common import MediaGap
 from ankinote.services.ai import ImageGenerationService, TextGenerationService
 from ankinote.services.anki import AnkiCollectionClient, TemplateUpsert
 from ankinote.services.anki_batch import anki_write_batch
@@ -23,6 +25,33 @@ from .models import (
 from .templates import load_card_style, load_template
 
 
+@dataclass
+class StemMedia:
+    """A card's diagram, or the gap that says why it has none."""
+
+    image: bytes | None = None
+    gaps: list[MediaGap] = field(default_factory=list)
+
+
+@dataclass
+class StemCardData:
+    """A generated (possibly edited) card and its media, not yet in Anki."""
+
+    model: StemCard
+    media: StemMedia
+
+
+def anki_tags(tags: list[str]) -> list[str]:
+    """``tags`` as Anki keeps them: it splits on spaces, so words join with ``_``."""
+    joined = ("_".join(tag.split()) for tag in tags)
+    return list(dict.fromkeys(tag for tag in joined if tag))
+
+
+def _image_name(image: bytes) -> str:
+    """Named by content, so a diagram keeps its name when the card is edited."""
+    return f"stem_{hashlib.md5(image).hexdigest()[:12]}.png"
+
+
 class StemCollection:
     """Manages STEM knowledge notes in Anki.
 
@@ -33,7 +62,7 @@ class StemCollection:
 
     def __init__(
         self,
-        anki_client: AnkiCollectionClient,
+        anki_client: AnkiCollectionClient | None,
         *,
         card_type: CardType | None = None,
         deck_name: str = "AINote::STEM",
@@ -45,7 +74,8 @@ class StemCollection:
         """Initialize StemCollection.
 
         Args:
-            anki_client: AnkiConnect client instance
+            anki_client: Anki client; None for a collection that only
+                generates (writing to Anki then fails)
             card_type: Selected type, or None for automatic classification
             deck_name: Name of the Anki deck to add notes to
             text_model: The LLM model used to generate content
@@ -63,6 +93,31 @@ class StemCollection:
             text_model=text_model,
             image_service=image_service,
         )
+
+    @property
+    def _anki(self) -> AnkiCollectionClient:
+        if self._anki_client is None:
+            raise RuntimeError("This StemCollection was built without an Anki client")
+        return self._anki_client
+
+    @property
+    def notetype_name(self) -> str:
+        """The selected type's note type; a collection for drafts has one type."""
+        if self.card_type is None:
+            raise ValueError("No card type selected")
+        return note_type_name(self.card_type)
+
+    def card_templates(self) -> list[dict[str, str]]:
+        """The selected type's one card template, as Anki stores it."""
+        if self.card_type is None:
+            raise ValueError("No card type selected")
+        return [
+            {
+                "Name": "Card 1",
+                "Front": load_template(f"{self.card_type}/front.html"),
+                "Back": load_template(f"{self.card_type}/back.html"),
+            }
+        ]
 
     async def __aenter__(self) -> Self:
         """Async context manager entry: ensure note type and deck exist."""
@@ -82,7 +137,7 @@ class StemCollection:
         then ensures the deck is present. Does not start TTS or LLM services,
         so it is safe to call from the GUI setup flow.
         """
-        async with anki_write_batch(self._anki_client):
+        async with anki_write_batch(self._anki):
             await self._ensure_note_type_exists()
             await self._ensure_deck_exists()
 
@@ -98,9 +153,9 @@ class StemCollection:
         front_template = load_template(f"{card_type}/front.html")
         back_template = load_template(f"{card_type}/back.html")
         style = load_card_style()
-        exists = await self._anki_client.models.exists(notetype_name)
+        exists = await self._anki.models.exists(notetype_name)
         if not exists:
-            await self._anki_client.models.create(
+            await self._anki.models.create(
                 model_name=notetype_name,
                 fields=fields,
                 templates=[
@@ -116,8 +171,8 @@ class StemCollection:
             logger.success(f"Created note type: {notetype_name}")
             return
 
-        await self._anki_client.models.ensure_fields(notetype_name, fields)
-        await self._anki_client.models.update_templates(
+        await self._anki.models.ensure_fields(notetype_name, fields)
+        await self._anki.models.update_templates(
             notetype_name,
             [
                 TemplateUpsert(
@@ -127,12 +182,12 @@ class StemCollection:
                 )
             ],
         )
-        await self._anki_client.models.update_styling(notetype_name, style)
+        await self._anki.models.update_styling(notetype_name, style)
         logger.success(f"Updated note type: {notetype_name}")
 
     async def _ensure_deck_exists(self) -> int:
         """Ensure the deck exists in Anki, create it if it doesn't."""
-        deck_id = await self._anki_client.decks.create(self.deck_name)
+        deck_id = await self._anki.decks.create(self.deck_name)
         logger.success(f"Ensured deck exists: {self.deck_name}")
         return deck_id
 
@@ -233,19 +288,120 @@ class StemCollection:
             stem_model, image_bytes, on_image_error
         )
 
-        async with anki_write_batch(self._anki_client):
+        async with anki_write_batch(self._anki):
             image_filename: str | None = None
             if image_bytes is not None:
                 card_hash = hashlib.md5(image_key.encode()).hexdigest()[:12]
                 image_filename = f"stem_{card_hash}.png"
-                await self._anki_client.media.store_file(image_filename, image_bytes)
+                await self._anki.media.store_file(image_filename, image_bytes)
                 logger.info(f"Stored diagram: {image_filename}")
 
             note_data = self._build_note_data(stem_model, image_filename)
-            all_tags = [*(tags or []), *stem_model.tags, "AI-generated"]
+            all_tags = anki_tags([*(tags or []), *stem_model.tags, "AI-generated"])
             return await self._upsert_note(
                 notetype_name, note_data, all_tags, stem_model.front
             )
+
+    # -- Drafts: generate, edit or rewrite, preview, then save -----------------
+
+    async def generate_cards(self, topic: str) -> list[StemCardData]:
+        """One card for ``topic``, with its diagram when it wants one."""
+        model = await self.generate_model(topic)
+        return [StemCardData(model=model, media=await self._diagram(model))]
+
+    async def rewrite_card(
+        self,
+        card: StemCardData,
+        topic: str,
+        instruction: str,
+        *,
+        card_type: CardType | None = None,
+    ) -> StemCardData:
+        """``card`` rewritten by the model as ``instruction`` asks.
+
+        The diagram is kept while the new card asks for the same one.
+        """
+        model = await self._generator.rewrite(
+            topic,
+            card.model,
+            instruction,
+            card_type=card_type,
+            reasoning_effort=self._reasoning_effort,
+        )
+        return StemCardData(model=model, media=await self._diagram(model, card))
+
+    async def revise_card(self, card: StemCardData, model: StemCard) -> StemCardData:
+        """``card`` with edited fields; edits never touch the diagram."""
+        return StemCardData(model=model, media=card.media)
+
+    async def _diagram(
+        self, model: StemCard, previous: StemCardData | None = None
+    ) -> StemMedia:
+        description = model.image_description
+        if not description:
+            return StemMedia()
+        if (
+            previous is not None
+            and previous.media.image is not None
+            and previous.model.image_description == description
+        ):
+            return StemMedia(image=previous.media.image)
+        if self._generator._image_service is None:
+            return StemMedia(gaps=[MediaGap("image", "not_set_up")])
+        try:
+            return StemMedia(image=await self._generator.generate_image(description))
+        except Exception as exc:
+            logger.warning(f"Diagram failed, card made without it: {exc}")
+            return StemMedia(gaps=[MediaGap("image", "failed", str(exc))])
+
+    def note_fields(self, card: StemCardData) -> dict[str, str]:
+        image = card.media.image
+        return self._build_note_data(
+            card.model, _image_name(image) if image is not None else None
+        )
+
+    def note_tags(self, card: StemCardData) -> list[str]:
+        return anki_tags([*card.model.tags, "AI-generated"])
+
+    def media_files(self, card: StemCardData) -> dict[str, bytes]:
+        image = card.media.image
+        return {_image_name(image): image} if image is not None else {}
+
+    async def save_card(
+        self, card: StemCardData, /, *, replaces: StemCardData | None = None
+    ) -> int:
+        """Write ``card`` to Anki; returns the note id.
+
+        ``replaces`` is the card saved from the same draft before: its note
+        is updated even if the front has changed since. Otherwise a note with
+        the same front (and type) is updated, else a new one is added.
+        """
+        model = card.model
+        notetype_name = note_type_name(model.card_type)
+        async with anki_write_batch(self._anki):
+            image_name = None
+            if card.media.image is not None:
+                # Anki may keep it under another name if that one is taken.
+                image_name = await self._anki.media.store_file(
+                    _image_name(card.media.image), card.media.image
+                ) or _image_name(card.media.image)
+            fields = self._build_note_data(model, image_name)
+            tags = self.note_tags(card)
+            if (
+                replaces is not None
+                and replaces.model.card_type == model.card_type
+                and replaces.model.front != model.front
+            ):
+                note_id = await self._anki.notes.find(
+                    deck_name=self.deck_name,
+                    unique_fields={"front": replaces.model.front},
+                    model_name=notetype_name,
+                )
+                if note_id is not None:
+                    await self._anki.notes.update_fields(note_id, fields)
+                    await self._anki.notes.update_tags(note_id, tags)
+                    return note_id
+            return await self._upsert_note(notetype_name, fields, tags, model.front)
 
     async def _resolve_image_bytes(
         self,
@@ -274,17 +430,17 @@ class StemCollection:
         front: str,
     ) -> int:
         """Update the note with a matching front, else create a new one."""
-        note_id = await self._anki_client.notes.find(
+        note_id = await self._anki.notes.find(
             deck_name=self.deck_name,
             unique_fields={"front": front},
             model_name=notetype_name,
         )
         if note_id is not None:
-            await self._anki_client.notes.update_fields(note_id, note_data)
-            await self._anki_client.notes.update_tags(note_id, tags)
+            await self._anki.notes.update_fields(note_id, note_data)
+            await self._anki.notes.update_tags(note_id, tags)
             logger.info(f"Updated note {note_id}")
             return note_id
-        note_id = await self._anki_client.notes.add(
+        note_id = await self._anki.notes.add(
             deck_name=self.deck_name,
             model_name=notetype_name,
             fields=note_data,

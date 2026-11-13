@@ -5,6 +5,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
+from ankinote.collections.editing import Form, Lines, Rows, Text
+
 
 class CardType(StrEnum):
     CONCEPT = "concept"
@@ -32,30 +34,30 @@ class Variable(BaseModel):
 class ConceptModel(CardContent):
     card_type: Literal[CardType.CONCEPT] = CardType.CONCEPT
     back_brief: str = Field(min_length=1)
-    back_detail: str
+    back_detail: str = ""
 
 
 class FormulaModel(CardContent):
     card_type: Literal[CardType.FORMULA] = CardType.FORMULA
     latex: str = Field(min_length=1)
     meaning: str = Field(min_length=1)
-    variables: list[Variable]
-    conditions: str
-    derivation: str
+    variables: list[Variable] = Field(default_factory=list)
+    conditions: str = ""
+    derivation: str = ""
 
 
 class ProcedureModel(CardContent):
     card_type: Literal[CardType.PROCEDURE] = CardType.PROCEDURE
     summary: str = Field(min_length=1)
     steps: list[Annotated[str, Field(min_length=1)]] = Field(min_length=1)
-    conditions: str
+    conditions: str = ""
 
 
 class ExampleModel(CardContent):
     card_type: Literal[CardType.EXAMPLE] = CardType.EXAMPLE
     answer: str = Field(min_length=1)
     steps: list[Annotated[str, Field(min_length=1)]] = Field(min_length=1)
-    explanation: str
+    explanation: str = ""
 
 
 type StemCard = ConceptModel | FormulaModel | ProcedureModel | ExampleModel
@@ -86,6 +88,41 @@ NOTE_FIELDS: dict[CardType, tuple[str, ...]] = {
     ),
     CardType.PROCEDURE: ("front", "summary", "steps", "conditions", "image"),
     CardType.EXAMPLE: ("front", "answer", "steps", "explanation", "image"),
+}
+
+
+# What a user may change before saving, in the order the card shows it. The
+# image prompt isn't offered: a new diagram means rewriting the card.
+EDIT_FORMS: dict[CardType, Form] = {
+    CardType.CONCEPT: (
+        Text("front", multiline=True),
+        Text("back_brief", multiline=True),
+        Text("back_detail", multiline=True),
+        Lines("tags"),
+    ),
+    CardType.FORMULA: (
+        Text("front", multiline=True),
+        Text("latex", multiline=True),
+        Text("meaning", multiline=True),
+        Rows("variables", ("symbol", "description")),
+        Text("conditions", multiline=True),
+        Text("derivation", multiline=True),
+        Lines("tags"),
+    ),
+    CardType.PROCEDURE: (
+        Text("front", multiline=True),
+        Text("summary", multiline=True),
+        Lines("steps"),
+        Text("conditions", multiline=True),
+        Lines("tags"),
+    ),
+    CardType.EXAMPLE: (
+        Text("front", multiline=True),
+        Text("answer", multiline=True),
+        Lines("steps"),
+        Text("explanation", multiline=True),
+        Lines("tags"),
+    ),
 }
 
 

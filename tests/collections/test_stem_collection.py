@@ -9,7 +9,11 @@ from unittest.mock import AsyncMock
 import pytest
 from pydantic import ValidationError
 
-from ankinote.collections.stem.collection import StemCollection
+from ankinote.collections.stem.collection import (
+    StemCardData,
+    StemCollection,
+    StemMedia,
+)
 from ankinote.collections.stem.generator import StemGenerator
 from ankinote.collections.stem.models import (
     CARD_ADAPTER,
@@ -416,3 +420,209 @@ async def test_generate_and_add_note_composes_generate_and_add():
     assert note_id == 42
     assert "Extra" in anki._added[0]["tags"]
     assert "AI-generated" in anki._added[0]["tags"]
+
+
+@pytest.mark.asyncio
+async def test_multi_word_tags_stay_one_tag_in_anki():
+    """Anki splits tags on spaces, so "Machine Learning" became two tags."""
+    anki = _recording_anki_client()
+    collection = StemCollection(
+        cast(AnkiCollectionClient, anki),
+        text_model="stem-model",
+        text_service=cast(TextGenerationService, object()),
+    )
+    model = CARDS[0].model_copy(update={"tags": ["Machine Learning", " Math "]})
+
+    await collection.add_note(model, tags=["My  Extra"])
+
+    assert anki._added[0]["tags"] == [
+        "My_Extra",
+        "Machine_Learning",
+        "Math",
+        "AI-generated",
+    ]
+
+
+# -- Drafts: generate_cards / rewrite_card / save_card -----------------------
+
+
+def _draft_collection(text: str, image_service=None, anki=None) -> StemCollection:
+    return StemCollection(
+        cast(AnkiCollectionClient, anki),
+        text_model="stem-model",
+        text_service=cast(TextGenerationService, _RecordingTextService(text)),
+        image_service=cast(ImageGenerationService, image_service),
+    )
+
+
+_WITH_DIAGRAM = json.dumps(
+    {**json.loads(_CONCEPT_PAYLOAD), "image_description": "a diagram"}
+)
+
+
+async def test_a_wanted_diagram_without_an_image_model_is_a_gap():
+    collection = _draft_collection(_WITH_DIAGRAM)
+    [card] = await collection.generate_cards("entropy")
+
+    assert card.media.image is None
+    assert [(g.kind, g.reason) for g in card.media.gaps] == [("image", "not_set_up")]
+    assert collection.note_fields(card)["image"] == ""
+
+
+async def test_no_diagram_wanted_is_no_gap():
+    images = _RecordingImageService()
+    [card] = await _draft_collection(_CONCEPT_PAYLOAD, images).generate_cards("e")
+
+    assert card.media == StemMedia()
+    assert images.prompts == []
+
+
+async def test_a_failed_diagram_is_a_gap_and_the_card_is_still_made():
+    class Failing:
+        async def generate_image(self, *, prompt: str) -> bytes:
+            raise RuntimeError("quota")
+
+    [card] = await _draft_collection(_WITH_DIAGRAM, Failing()).generate_cards("e")
+
+    assert card.model.front == "What is entropy?"
+    assert [(g.reason, g.detail) for g in card.media.gaps] == [("failed", "quota")]
+
+
+async def test_the_diagram_is_named_by_content_so_edits_keep_it():
+    images = _RecordingImageService()
+    collection = _draft_collection(_WITH_DIAGRAM, images)
+    [card] = await collection.generate_cards("entropy")
+    edited = await collection.revise_card(
+        card, card.model.model_copy(update={"front": "Define entropy."})
+    )
+
+    [name] = collection.media_files(card)
+    assert collection.media_files(edited) == {name: b"generated-bytes"}
+    assert name in collection.note_fields(edited)["image"]
+
+
+async def test_rewrite_sends_the_card_and_instruction_and_can_change_type():
+    formula = CARDS[1].model_copy(update={"image_description": "a diagram"})
+    text = _RecordingTextService(CARDS[3].model_dump_json())
+    images = _RecordingImageService()
+    collection = StemCollection(
+        None,
+        text_model="stem-model",
+        text_service=cast(TextGenerationService, text),
+        image_service=cast(ImageGenerationService, images),
+    )
+    card = StemCardData(model=formula, media=StemMedia(image=b"old"))
+
+    result = await collection.rewrite_card(
+        card, "newton", "用一个具体例子", card_type=CardType.EXAMPLE
+    )
+
+    assert isinstance(result.model, ExampleModel)
+    [call] = text.calls  # an explicit type skips classification
+    system, user = call["messages"]
+    assert "ExampleModel" in system["content"]
+    assert "Topic: newton" in user["content"]
+    assert '"latex": "F=ma"' in user["content"]
+    assert "Turn it into a example card." in user["content"]
+    assert "Instruction: 用一个具体例子" in user["content"]
+    # The new card wants no diagram, so the old one goes.
+    assert result.media == StemMedia()
+
+
+async def test_rewrite_keeps_the_diagram_while_its_description_stays():
+    same = CARDS[0].model_copy(update={"image_description": "a diagram"})
+    images = _RecordingImageService()
+    collection = _draft_collection(same.model_dump_json(), images)
+    card = StemCardData(model=same, media=StemMedia(image=b"old"))
+
+    result = await collection.rewrite_card(card, "entropy", "shorter")
+
+    assert result.media.image == b"old"
+    assert images.prompts == []
+    user = collection._generator._text_service.calls[0]["messages"][1]["content"]
+    assert "Turn it into" not in user
+
+
+def _saving_anki(found: dict[str, int]) -> SimpleNamespace:
+    calls: dict[str, list] = {"add": [], "update": [], "tags": [], "stored": []}
+
+    async def store_file(filename: str, data: bytes) -> str:
+        calls["stored"].append(filename)
+        return "renamed.png"
+
+    async def find(*, deck_name, unique_fields, model_name) -> int | None:
+        return found.get(f"{model_name}|{unique_fields['front']}")
+
+    async def add(**kwargs) -> int:
+        calls["add"].append(kwargs)
+        return 7
+
+    async def update_fields(note_id, fields) -> None:
+        calls["update"].append((note_id, fields))
+
+    async def update_tags(note_id, tags) -> None:
+        calls["tags"].append((note_id, tags))
+
+    return SimpleNamespace(
+        media=SimpleNamespace(store_file=store_file),
+        notes=SimpleNamespace(
+            find=find, add=add, update_fields=update_fields, update_tags=update_tags
+        ),
+        calls=calls,
+    )
+
+
+async def test_saving_uses_the_media_name_anki_gives_and_anki_tags():
+    anki = _saving_anki({})
+    collection = _draft_collection("", anki=anki)
+    model = CARDS[0].model_copy(update={"tags": ["Machine Learning"]})
+    card = StemCardData(model=model, media=StemMedia(image=b"png"))
+
+    assert await collection.save_card(card) == 7
+
+    [added] = anki.calls["add"]
+    assert added["model_name"] == "AINote STEM Concept"
+    assert added["tags"] == ["Machine_Learning", "AI-generated"]
+    assert "src='renamed.png'" in added["fields"]["image"]
+
+
+async def test_saving_again_after_the_front_changed_updates_the_same_note():
+    anki = _saving_anki({"AINote STEM Concept|Entropy?": 5})
+    collection = _draft_collection("", anki=anki)
+    saved = StemCardData(model=CARDS[0], media=StemMedia())
+    edited = StemCardData(
+        model=CARDS[0].model_copy(update={"front": "Define entropy."}),
+        media=StemMedia(),
+    )
+
+    assert await collection.save_card(edited, replaces=saved) == 5
+
+    assert anki.calls["add"] == []
+    [(note_id, fields)] = anki.calls["update"]
+    assert (note_id, fields["front"]) == (5, "Define entropy.")
+
+
+async def test_a_new_type_after_saving_makes_a_new_note():
+    anki = _saving_anki({"AINote STEM Formula|Newton's law?": 5})
+    collection = _draft_collection("", anki=anki)
+    saved = StemCardData(model=CARDS[1], media=StemMedia())
+    example = CARDS[3].model_copy(update={"front": "Newton's law?"})
+
+    note_id = await collection.save_card(
+        StemCardData(model=example, media=StemMedia()), replaces=saved
+    )
+
+    assert note_id == 7
+    assert anki.calls["add"][0]["model_name"] == "AINote STEM Example"
+
+
+def test_a_draft_collection_renders_its_selected_type():
+    collection = _make_collection(card_type=CardType.PROCEDURE)
+
+    [template] = collection.card_templates()
+
+    assert collection.notetype_name == "AINote STEM Procedure"
+    assert "badge-procedure" in template["Front"]
+    assert "{{steps}}" in template["Back"]
+    with pytest.raises(ValueError, match="No card type"):
+        _ = _make_collection().notetype_name

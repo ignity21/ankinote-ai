@@ -50,13 +50,36 @@ def _strip_json_fences(content: str) -> str:
     return content.strip()
 
 
+def _rewrite_request(current: StemCard, instruction: str, card_type: CardType) -> str:
+    """What to change in ``current``, appended to the topic for a rewrite."""
+    data = current.model_dump(mode="json", exclude={"card_type"})
+    lines = [
+        f"Current {current.card_type} card (JSON):",
+        json.dumps(data, ensure_ascii=False, indent=2),
+        "",
+        "Rewrite this card.",
+    ]
+    if card_type != current.card_type:
+        lines.append(f"Turn it into a {card_type} card.")
+    if instruction:
+        lines.append(f"Instruction: {instruction}")
+    lines.append(
+        "Keep whatever the instruction doesn't ask to change, and keep the "
+        "card's language unless the instruction asks for another."
+    )
+    return "\n".join(lines)
+
+
 def _build_user_message(
     topic: str,
     reference_image: bytes | None,
     reference_image_mime: str,
+    rewrite: str = "",
 ) -> TextMessage:
     """Build the user message, attaching a reference image when supplied."""
     text = f"STEM flashcard request:\n\nTopic: {topic}"
+    if rewrite:
+        text = f"{text}\n\n{rewrite}"
     if reference_image is None:
         return {"role": "user", "content": text}
 
@@ -82,6 +105,7 @@ async def generate_stem_data(
     reference_image: bytes | None = None,
     reference_image_mime: str = "image/png",
     card_type: CardType | None = None,
+    rewrite: str = "",
 ) -> StemCard:
     """Generate STEM card data via LLM.
 
@@ -95,7 +119,9 @@ async def generate_stem_data(
     vision-capable text model. It is unrelated to the AI's own
     ``image_description`` output, which requests a generated diagram.
     """
-    user_message = _build_user_message(topic, reference_image, reference_image_mime)
+    user_message = _build_user_message(
+        topic, reference_image, reference_image_mime, rewrite
+    )
     if card_type is None:
         classification = await text_service.generate_text(
             model=model,
@@ -195,6 +221,32 @@ class StemGenerator:
             reference_image=reference_image,
             reference_image_mime=reference_image_mime,
             card_type=card_type,
+        )
+
+    async def rewrite(
+        self,
+        topic: str,
+        current: StemCard,
+        instruction: str,
+        *,
+        card_type: CardType | None = None,
+        temperature: float = 0.3,
+        reasoning_effort: str | None = None,
+    ) -> StemCard:
+        """``current`` rewritten as ``instruction`` asks, as ``card_type``.
+
+        ``topic`` is what the card was generated from. The type stays unless
+        ``card_type`` names another; the new type's prompt and schema apply.
+        """
+        card_type = card_type or current.card_type
+        return await generate_stem_data(
+            topic=topic,
+            text_service=self._text_service,
+            model=self._text_model,
+            temperature=temperature,
+            reasoning_effort=reasoning_effort,
+            card_type=card_type,
+            rewrite=_rewrite_request(current, instruction.strip(), card_type),
         )
 
     async def generate_image(self, description: str) -> bytes:

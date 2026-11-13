@@ -5,7 +5,9 @@
  *
  * A ready or saved note can have its fields edited first (`Editing`);
  * applying an edit replaces the note's preview, and a saved row goes back
- * to ready until it's saved again.
+ * to ready until it's saved again. A STEM note's editor previews the edit
+ * live, and a STEM note can be rewritten by the model from an instruction.
+ * Edits and rewrites can be undone.
  *
  * The session lives at module level, so switching workspaces keeps it; a
  * reload starts a new one (drafts are in the server's memory anyway).
@@ -13,12 +15,14 @@
 import {
   api,
   ApiError,
+  type CardSide,
   type DraftNote,
   type FormField,
   type FormRow,
   type FormValues,
   type Kind,
   type SavedNote,
+  type StemType,
 } from "./api";
 
 /** Providers rate-limit; two at a time keeps a batch moving without 429s. */
@@ -26,7 +30,14 @@ const CONCURRENCY = 2;
 const STORAGE_KEY = "ankinote.generate";
 
 export type RowState = "queued" | "generating" | "ready" | "saving" | "saved" | "failed";
-export type Failure = { code: string; detail: string; during: "generate" | "save" | "edit" };
+export type Failure = {
+  code: string;
+  detail: string;
+  during: "generate" | "save" | "edit" | "rewrite" | "undo";
+};
+
+/** Wait this long after the last keystroke before previewing an edit. */
+const LIVE_DELAY_MS = 300;
 
 /** The editor's working copy: a lines field is one text, one item per line. */
 export type EditValues = Record<string, string | FormRow[]>;
@@ -51,11 +62,52 @@ export class Editing {
   values = $state<EditValues>({});
   applying = $state(false);
   failure = $state<Failure | null>(null);
+  /** STEM: the cards as the edit stands (null until it differs). */
+  live = $state<CardSide[] | null>(null);
+  /** STEM: why the edit as it stands can't be previewed (a blank field…). */
+  liveFailure = $state<Failure | null>(null);
   readonly #original: string;
+  #asked = 0;
+  #timer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(readonly note: DraftNote) {
     this.values = editValues(note.form);
     this.#original = JSON.stringify(this.payload());
+  }
+
+  /** Whether the editor shows the card beside the form as you type. */
+  get isLive(): boolean {
+    return this.note.kind === "stem";
+  }
+
+  /** Preview the edit as it stands, once typing pauses. */
+  schedule() {
+    if (!this.isLive) return;
+    if (this.#timer) clearTimeout(this.#timer);
+    this.#timer = setTimeout(() => void this.#preview(), LIVE_DELAY_MS);
+  }
+
+  stop() {
+    if (this.#timer) clearTimeout(this.#timer);
+    this.#asked += 1;
+  }
+
+  async #preview() {
+    const asked = ++this.#asked;
+    if (!this.changed) {
+      this.live = null;
+      this.liveFailure = null;
+      return;
+    }
+    try {
+      const { cards } = await api.previewDraft(this.note.id, this.payload());
+      if (asked !== this.#asked) return;
+      this.live = cards;
+      this.liveFailure = null;
+    } catch (error) {
+      // Keep showing the last edit that could be previewed.
+      if (asked === this.#asked) this.liveFailure = describe(error, "edit");
+    }
   }
 
   payload(): FormValues {
@@ -79,10 +131,17 @@ export class Row {
   saved = $state<SavedNote | null>(null);
   /** Set while the selected note's fields are being edited. */
   editing = $state<Editing | null>(null);
+  /** Set while the model rewrites the note; when it started. */
+  rewriting = $state(0);
+  undoing = $state(false);
+  /** A rewrite or undo that didn't happen; the note is as it was. */
+  changeFailure = $state<Failure | null>(null);
 
   constructor(
     readonly kind: Kind,
     readonly text: string,
+    /** STEM: the type asked for; undefined lets the model choose. */
+    readonly cardType?: StemType,
   ) {}
 
   get note(): DraftNote | null {
@@ -99,12 +158,14 @@ export class Row {
       this.state === "queued" ||
       this.state === "generating" ||
       this.state === "saving" ||
+      !!this.rewriting ||
+      this.undoing ||
       !!this.editing?.applying
     );
   }
 }
 
-type Stored = { kind: Kind; image: boolean; audio: boolean };
+type Stored = { kind: Kind; image: boolean; audio: boolean; stemType: StemType | "auto" };
 
 function stored(): Partial<Stored> {
   try {
@@ -120,6 +181,8 @@ class Session {
   kind = $state<Kind>(stored().kind ?? "word");
   image = $state(stored().image ?? true);
   audio = $state(stored().audio ?? true);
+  /** STEM: the type new rows ask for; "auto" lets the model choose. */
+  stemType = $state<StemType | "auto">(stored().stemType ?? "auto");
   /** False when no image model is set up: the switch is off and disabled. */
   imageAvailable = $state(true);
   /** Ticks every second while something generates, for elapsed times. */
@@ -135,7 +198,12 @@ class Session {
   constructor() {
     $effect.root(() => {
       $effect(() => {
-        const value: Stored = { kind: this.kind, image: this.image, audio: this.audio };
+        const value: Stored = {
+          kind: this.kind,
+          image: this.image,
+          audio: this.audio,
+          stemType: this.stemType,
+        };
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
         } catch {
@@ -165,7 +233,8 @@ class Session {
       .split("\n")
       .map((line) => line.trim())
       .filter((line) => line && !seen.has(line) && (seen.add(line), true));
-    const rows = lines.map((line) => new Row(this.kind, line));
+    const type = this.kind === "stem" && this.stemType !== "auto" ? this.stemType : undefined;
+    const rows = lines.map((line) => new Row(this.kind, line, type));
     if (!rows.length) return 0;
     this.rows.push(...rows);
     // Follow the new input unless the user is looking at a finished card.
@@ -188,9 +257,11 @@ class Session {
 
   regenerate(row: Row) {
     if (row.busy) return;
+    row.editing?.stop();
     row.editing = null;
     row.state = "queued";
     row.failure = null;
+    row.changeFailure = null;
     this.#pump();
   }
 
@@ -207,12 +278,15 @@ class Session {
   /** Start editing the note the preview shows. */
   edit(row: Row) {
     const note = row.note;
-    if (!note || !row.saveable || row.editing) return;
+    if (!note || !row.saveable || row.editing || row.busy) return;
+    row.changeFailure = null;
     row.editing = new Editing(note);
   }
 
   cancelEdit(row: Row) {
-    if (!row.editing?.applying) row.editing = null;
+    if (row.editing?.applying) return;
+    row.editing?.stop();
+    row.editing = null;
   }
 
   /** Send the edit; on success the note's preview is replaced. False if it failed. */
@@ -220,22 +294,16 @@ class Session {
     const editing = row.editing;
     if (!editing || editing.applying) return false;
     if (!editing.changed) {
+      editing.stop();
       row.editing = null;
       return true;
     }
+    editing.stop();
     editing.applying = true;
     editing.failure = null;
     try {
-      const updated = await api.editDraft(editing.note.id, editing.payload());
-      const index = row.notes.findIndex((n) => n.id === updated.id);
-      if (index >= 0) row.notes[index] = updated;
+      this.#replace(row, await api.editDraft(editing.note.id, editing.payload()));
       if (row.editing === editing) row.editing = null;
-      // Anki has the old fields until this is saved again.
-      if (row.state === "saved") {
-        row.state = "ready";
-        row.saved = null;
-      }
-      row.failure = null;
       return true;
     } catch (error) {
       editing.failure = describe(error, "edit");
@@ -245,8 +313,55 @@ class Session {
     }
   }
 
+  /** A changed note takes the old one's place; Anki has the old one until saved again. */
+  #replace(row: Row, updated: DraftNote) {
+    const index = row.notes.findIndex((n) => n.id === updated.id);
+    if (index >= 0) row.notes[index] = updated;
+    if (row.state === "saved") {
+      row.state = "ready";
+      row.saved = null;
+    }
+    row.failure = null;
+    row.changeFailure = null;
+  }
+
+  /** STEM: have the model rewrite the selected note. False if it didn't. */
+  async rewrite(row: Row, instruction: string, cardType?: StemType): Promise<boolean> {
+    const note = row.note;
+    if (!note || note.kind !== "stem" || !row.saveable || row.busy || row.editing) return false;
+    row.rewriting = Date.now();
+    row.changeFailure = null;
+    this.#tick();
+    try {
+      this.#replace(row, await api.rewriteDraft(note.id, instruction.trim(), cardType));
+      return true;
+    } catch (error) {
+      row.changeFailure = describe(error, "rewrite");
+      return false;
+    } finally {
+      row.rewriting = 0;
+      this.#tick();
+    }
+  }
+
+  /** Put back the note as it was before its last edit or rewrite. */
+  async undo(row: Row) {
+    const note = row.note;
+    if (!note?.can_undo || !row.saveable || row.busy || row.editing) return;
+    row.undoing = true;
+    row.changeFailure = null;
+    try {
+      this.#replace(row, await api.undoDraft(note.id));
+    } catch (error) {
+      row.changeFailure = describe(error, "undo");
+    } finally {
+      row.undoing = false;
+    }
+  }
+
   /** Save every note of `row` (applying an open edit first); saves run one at a time. */
   async save(row: Row): Promise<void> {
+    if (row.rewriting || row.undoing) return;
     if (row.editing && !(await this.applyEdit(row))) return;
     if (!row.saveable) return;
     row.state = "saving";
@@ -288,10 +403,14 @@ class Session {
     row.state = "generating";
     row.startedAt = Date.now();
     row.saved = null;
-    const image = row.kind === "word" && this.image && this.imageAvailable;
-    const media = { image, audio: this.audio };
+    const pictures = row.kind === "word" || row.kind === "stem";
+    const options = {
+      image: pictures && this.image && this.imageAvailable,
+      audio: this.audio,
+      card_type: row.cardType,
+    };
     try {
-      row.notes = (await api.generate(row.kind, row.text, media)).notes;
+      row.notes = (await api.generate(row.kind, row.text, options)).notes;
       row.pick = 0;
       row.state = "ready";
     } catch (error) {
@@ -302,7 +421,7 @@ class Session {
   }
 
   #tick() {
-    const active = this.rows.some((r) => r.state === "generating");
+    const active = this.rows.some((r) => r.state === "generating" || r.rewriting);
     if (active && !this.#timer) {
       this.now = Date.now();
       this.#timer = setInterval(() => (this.now = Date.now()), 1000);

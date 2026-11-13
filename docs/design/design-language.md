@@ -114,7 +114,7 @@ palette / mode / language switches.
   images says "No image: no image model is set up."
 
 Generate page, built 2026-11-13: a Word / Phrase / Sentence segment tops
-the input (STEM to come), and each input line is a
+the input (STEM added the same day, below), and each input line is a
 queue row (`○` waiting, spinner with seconds, `●` ready, `✓` saved, `✗`
 failed); two rows generate at a time and nothing reaches Anki until Save.
 "Save N ready" saves the rest of a batch. Pictures and Audio switches sit
@@ -124,7 +124,7 @@ model is set up; only word cards have pictures, so the switch shows for
 Word only. A note type with one card template (Sentence: Production)
 shows the template's name instead of a one-option switch. Keys: `Ctrl+S` saves the selected row (also from the text
 field), `R` regenerates, `↑`/`↓` select. The queue is per browser tab: a
-reload starts a new session. Still to come: the STEM kind.
+reload starts a new session.
 
 Edit fields, built 2026-11-13: "Edit fields" (`E`) under a ready or saved
 preview swaps the card for a form of what the note's model says (not raw
@@ -139,6 +139,35 @@ edit is refused and the card keeps the audio it had. A refused edit names
 the field and outlines it. Applying to a saved row sets it back to ready,
 since Anki has the old fields until it's saved again (same note, updated).
 On a phone the input pane is hidden while editing, to give the form room.
+`Undo` (`U`) under the preview puts back the card as it was before its last
+edit (or rewrite, below); the server keeps the last 20 versions of a draft.
+
+STEM, built 2026-11-13: the fourth kind. Under the input, type chips (Auto,
+Concept, Formula, Procedure, Worked example; Auto lets the model choose) and
+a Diagrams switch ("Drawn only when a diagram helps"); there is no audio.
+A question may be up to 1000 characters (words, phrases and sentences 300).
+The preview typesets math with MathJax 3 (bundled, `tex-svg-full`, the
+`\( \)` / `\[ \]` delimiters Anki uses) inside the sandboxed frame, and
+lists every formula that can't be shown above the card: TeX errors with
+MathJax's message, and formulas left unclosed (unbalanced braces, which
+MathJax and Anki both show as source without complaint). `noerrors` and
+`noundefined` are off in the preview so those are reported rather than
+hidden. The card is sent into the frame by message, so changes never reload
+it.
+- **Edit fields** for STEM is a live editor: the queue and input give way,
+  the form and the card sit side by side (tabs "Fields / Preview" at
+  ≤ 760px), and the card follows the form 300 ms after typing stops,
+  without applying anything. LaTeX fields (formula, variable symbols) are
+  mono. An edit the card can't hold (a blank question) outlines the field
+  and the preview says it shows the last edit that could be shown. The
+  question can be edited: saving again updates the note saved before, even
+  under its new question.
+- **Rewrite with AI** sits between the card and the actions: an instruction
+  ("simpler, add an example, the formula is wrong…"), an optional new type,
+  and Rewrite (`Enter`). The default text model rewrites the whole card from
+  the current one; Undo brings the old one back. The diagram is kept while
+  the new card asks for the same one. Changing type after saving makes a
+  new note of the new type; the old note stays.
 
 ## First-run wizard
 

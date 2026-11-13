@@ -83,7 +83,10 @@ GCP project.
    cleanly (`tests/test_card_render.py`). Phrase and sentence cards done the
    same way the same day (shared `collections.common.synthesize_all`; the
    CLI builds them with `optional_speech_service` too, no silent Google TTS
-   fallback). STEM cards still need it.
+   fallback). STEM cards done 2026-11-13: `StemCollection.generate_cards`
+   reports a wanted diagram that can't be drawn as a `MediaGap` (no image
+   model, or it failed) and makes the card anyway; a card that wants no
+   diagram reports nothing.
 3. **One-key presets.** In Settings and the wizard: "Gemini (one key)" and
    "OpenAI (one key)" fill the text, image, and TTS routes from a single
    pasted key. Existing per-route profiles stay for advanced use.

@@ -3,6 +3,7 @@
 import copy
 import json
 import os
+import re
 from typing import Any
 
 import httpx
@@ -579,3 +580,242 @@ async def test_saving_an_edited_note_again_replaces_its_audio_in_anki(
     examples, audio = await runtime.submit(stored)
     assert "rose late." in examples and "月亮升得很晚。" in examples
     assert audio == b"mp3:The moon rose late."
+
+
+# -- STEM -------------------------------------------------------------------
+
+NEWTON = {
+    "card_type": "formula",
+    "front": "Newton's second law?",
+    "latex": "F = ma",
+    "meaning": "Net force equals mass times acceleration.",
+    "variables": [{"symbol": "F", "description": "net force"}],
+    "conditions": "Inertial frame.",
+    "derivation": "",
+    "tags": ["Physics", "Classical Mechanics"],
+    "image_description": "A block pushed by an arrow labelled F",
+}
+
+ENTROPY = {
+    "card_type": "concept",
+    "front": "What is entropy?",
+    "back_brief": "A measure of disorder.",
+    "back_detail": "",
+    "tags": ["Physics"],
+    "image_description": None,
+}
+
+
+def _unversioned(note: dict) -> str:
+    """The note's cards without media revisions (each change bumps them)."""
+    return re.sub(r"\?v=\d+", "", json.dumps(note["cards"]))
+
+
+async def _stem(api: httpx.AsyncClient, models: dict[str, Any], **body: Any) -> dict:
+    models["answer"] = json.dumps(body.pop("answer", NEWTON))
+    response = await api.post("/api/cards/stem", json={"text": "F=ma", **body})
+    assert response.status_code == 200, response.text
+    [note] = response.json()["notes"]
+    return note
+
+
+async def test_a_stem_card_previews_its_type_with_math_tags_and_diagram(
+    api: httpx.AsyncClient, models: dict[str, Any]
+) -> None:
+    await _gemini(api)
+
+    note = await _stem(api, models)
+
+    # Auto: one call to classify, one to write the card.
+    assert len(models["prompts"]) == 2
+    assert (note["kind"], note["headword"], note["variant"]) == (
+        "stem",
+        "Newton's second law?",
+        "formula",
+    )
+    assert (note["note_type"], note["deck"]) == ("AINote STEM Formula", "AINote::STEM")
+    assert note["gaps"] == [] and note["can_undo"] is False
+    [card] = note["cards"]
+    assert card["name"] == "Card 1"
+    assert "Newton's second law?" in card["front"]
+    assert r"\[F = ma\]" in card["back"]
+    assert "Physics Classical_Mechanics AI-generated" in card["back"]
+    assert ".stage-card" in note["css"]
+    assert [f["key"] for f in note["form"]][:2] == ["front", "latex"]
+    assert await _media_bodies(api, note) == {b"png"}
+
+
+async def test_a_chosen_stem_type_skips_classifying(
+    api: httpx.AsyncClient, models: dict[str, Any]
+) -> None:
+    await _gemini(api)
+
+    note = await _stem(api, models, card_type="formula")
+
+    assert len(models["prompts"]) == 1
+    assert note["variant"] == "formula"
+
+
+async def test_a_stem_diagram_says_when_it_cannot_be_drawn_unless_turned_off(
+    api: httpx.AsyncClient, models: dict[str, Any]
+) -> None:
+    await _gemini(api, image=False)
+
+    missing = await _stem(api, models)
+    off = await _stem(api, models, image=False)
+
+    assert missing["gaps"] == [{"kind": "image", "reason": "not_set_up", "detail": ""}]
+    assert off["gaps"] == []
+    assert "<img" not in missing["cards"][0]["back"] + off["cards"][0]["back"]
+
+
+async def test_a_stem_question_may_be_longer_than_a_word(
+    api: httpx.AsyncClient, models: dict[str, Any]
+) -> None:
+    await _gemini(api)
+    problem = "A block of mass 2 kg is pushed. " * 15
+
+    word = await api.post("/api/cards/word", json={"text": problem})
+    stem = await _stem(api, models, text=problem)
+
+    assert word.status_code == 422
+    assert word.json()["detail"] == {"code": "too_long", "detail": "300"}
+    assert stem["kind"] == "stem"
+
+
+async def test_a_live_preview_shows_unapplied_edits_and_keeps_the_draft(
+    api: httpx.AsyncClient, models: dict[str, Any]
+) -> None:
+    await _gemini(api)
+    note = await _stem(api, models)
+    url = f"/api/cards/drafts/{note['id']}"
+
+    live = await api.post(f"{url}/preview", json={"values": {"latex": "E = mc^2"}})
+    blank = await api.post(f"{url}/preview", json={"values": {"latex": " "}})
+    unchanged = await api.post(f"{url}/preview", json={"values": {}})
+
+    assert live.status_code == 200, live.text
+    [card] = live.json()["cards"]
+    assert r"\[E = mc^2\]" in card["back"]
+    assert "<img" in card["back"]  # the diagram stays
+    assert blank.status_code == 422
+    assert blank.json()["detail"] == {"code": "blank", "detail": "latex"}
+    assert unchanged.json()["cards"] == note["cards"]
+
+
+async def test_only_stem_drafts_have_a_live_preview_and_rewrite(
+    api: httpx.AsyncClient, models: dict[str, Any]
+) -> None:
+    await _gemini(api)
+    note = (await api.post("/api/cards/word", json={"text": "moon"})).json()["notes"][0]
+    url = f"/api/cards/drafts/{note['id']}"
+
+    preview = await api.post(f"{url}/preview", json={"values": {}})
+    rewrite = await api.post(f"{url}/rewrite", json={"instruction": "shorter"})
+
+    assert preview.status_code == rewrite.status_code == 409
+    assert preview.json()["detail"]["code"] == "not_supported"
+
+
+async def test_a_rewrite_replaces_the_card_and_undo_brings_it_back(
+    api: httpx.AsyncClient, models: dict[str, Any]
+) -> None:
+    await _gemini(api)
+    note = await _stem(api, models)
+    url = f"/api/cards/drafts/{note['id']}"
+    models["answer"] = json.dumps(ENTROPY)
+
+    rewritten = await api.post(
+        f"{url}/rewrite", json={"instruction": "讲概念", "card_type": "concept"}
+    )
+
+    assert rewritten.status_code == 200, rewritten.text
+    out = rewritten.json()
+    assert (out["id"], out["variant"], out["note_type"]) == (
+        note["id"],
+        "concept",
+        "AINote STEM Concept",
+    )
+    assert out["can_undo"] is True
+    assert "Instruction: 讲概念" in models["prompts"][-1]
+    assert '"latex": "F = ma"' in models["prompts"][-1]
+    assert "<img" not in out["cards"][0]["back"]
+
+    undone = await api.post(f"{url}/undo")
+    again = await api.post(f"{url}/undo")
+
+    assert undone.json()["variant"] == "formula"
+    assert _unversioned(undone.json()) == _unversioned(note)
+    assert undone.json()["can_undo"] is False
+    assert again.status_code == 409
+    assert again.json()["detail"]["code"] == "nothing_to_undo"
+
+
+async def test_a_rewrite_needs_an_instruction_or_another_type(
+    api: httpx.AsyncClient, models: dict[str, Any]
+) -> None:
+    await _gemini(api)
+    note = await _stem(api, models)
+    url = f"/api/cards/drafts/{note['id']}/rewrite"
+
+    blank = await api.post(url, json={"instruction": "  "})
+    same = await api.post(url, json={"card_type": "formula"})
+
+    assert blank.status_code == same.status_code == 422
+    assert blank.json()["detail"] == {"code": "blank", "detail": "instruction"}
+
+
+async def test_a_failed_rewrite_leaves_the_draft_as_it_was(
+    api: httpx.AsyncClient, models: dict[str, Any]
+) -> None:
+    await _gemini(api)
+    note = await _stem(api, models)
+    models["answer"] = "not json"
+
+    response = await api.post(
+        f"/api/cards/drafts/{note['id']}/rewrite", json={"instruction": "x"}
+    )
+    undo = await api.post(f"/api/cards/drafts/{note['id']}/undo")
+
+    assert response.status_code == 502
+    assert response.json()["detail"]["code"] == "bad_output"
+    assert undo.status_code == 409
+
+
+async def test_an_edit_can_be_undone_for_every_kind(
+    api: httpx.AsyncClient, models: dict[str, Any]
+) -> None:
+    await _gemini(api)
+    note = (await api.post("/api/cards/word", json={"text": "moon"})).json()["notes"][0]
+    url = f"/api/cards/drafts/{note['id']}"
+
+    edited = await api.put(f"{url}/fields", json={"values": {"difficulty": "A2"}})
+    undone = await api.post(f"{url}/undo")
+
+    assert edited.json()["can_undo"] is True
+    assert _unversioned(undone.json()) == _unversioned(note)
+
+
+async def test_a_saved_stem_card_with_a_new_front_updates_the_same_note(
+    api: httpx.AsyncClient, models: dict[str, Any], ankiweb: dict[str, Any]
+) -> None:
+    await builtin(api)
+    await login(api)
+    await _gemini(api, image=False)
+    note = await _stem(api, models)
+    url = f"/api/cards/drafts/{note['id']}"
+    first = (await api.post(f"{url}/save")).json()
+
+    edited = await api.put(
+        f"{url}/fields", json={"values": {"front": "State Newton's second law."}}
+    )
+    again = await api.post(f"{url}/save")
+
+    assert edited.status_code == 200, edited.text
+    assert first["deck"] == "AINote::STEM"
+    assert again.json()["note_id"] == first["note_id"]
+    runtime = get_shared_runtime()
+    assert runtime is not None
+    stored = await runtime.submit(lambda col: col.get_note(first["note_id"]))
+    assert stored["front"] == "State Newton's second law."
+    assert sorted(stored.tags) == ["AI-generated", "Classical_Mechanics", "Physics"]

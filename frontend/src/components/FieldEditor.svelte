@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { FormField, FormRow } from "../lib/api";
+  import { columnLabel as column, editErrorText, fieldLabel as label } from "../lib/editText";
   import type { Editing } from "../lib/generate.svelte";
-  import { t, type MessageKey } from "../lib/i18n.svelte";
-  import en from "../lib/locales/en.json";
+  import { t } from "../lib/i18n.svelte";
 
   let { editing }: { editing: Editing } = $props();
 
@@ -13,23 +13,21 @@
     root?.querySelector<HTMLElement>("input, textarea")?.focus();
   });
 
-  function known(key: string): key is MessageKey {
-    return key in en;
-  }
+  // A live editor previews the edit once typing pauses.
+  $effect(() => {
+    void JSON.stringify(editing.values);
+    editing.schedule();
+  });
 
-  function label(key: string): string {
-    const name = `edit.field.${key}`;
-    return known(name) ? t(name) : key;
-  }
-
-  function column(name: string): string {
-    const key = `edit.col.${name}`;
-    return known(key) ? t(key) : name;
-  }
+  /** LaTeX goes in monospace, so a missing brace is easy to spot. */
+  const CODE = new Set(["latex", "symbol"]);
 
   const failure = $derived(editing.failure);
-  /** The field a refused edit is about. */
-  const badKey = $derived(failure && failure.code !== "draft_gone" ? failure.detail : "");
+  /** The field a refused edit (or the live preview) is about. */
+  const badKey = $derived.by(() => {
+    const bad = failure ?? editing.liveFailure;
+    return bad && bad.code !== "draft_gone" ? bad.detail : "";
+  });
 
   // A refused edit may be about a field far below; show the message.
   $effect(() => {
@@ -37,17 +35,7 @@
   });
 
   function errorText(): string {
-    if (!failure) return "";
-    const field = editing.note.form.find((f) => f.key === failure.detail);
-    const limit = field && (field.type === "lines" || field.type === "rows") ? field : null;
-    const code = failure.code === "blank" && field?.type === "rows" ? "blankRow" : failure.code;
-    const key = `edit.err.${code}`;
-    return t(known(key) ? key : "edit.err.error", {
-      field: label(failure.detail),
-      min: limit?.min ?? 0,
-      max: limit?.max ?? 0,
-      detail: failure.detail,
-    });
+    return failure ? editErrorText(editing.note.form, failure) : "";
   }
 
   function text(key: string): string {
@@ -81,7 +69,7 @@
   {#if failure}
     <p class="error" role="alert">{errorText()}</p>
   {/if}
-  <p class="note">{t("edit.intro")}</p>
+  <p class="note">{t(editing.isLive ? "edit.introStem" : "edit.intro")}</p>
 
   {#each editing.note.form as field (field.key)}
     {#if field.type === "text" || field.type === "area"}
@@ -93,7 +81,9 @@
         {#if field.type === "area"}
           <textarea
             class="input"
+            class:mono={CODE.has(field.key)}
             rows="2"
+            spellcheck={CODE.has(field.key) ? "false" : undefined}
             bind:value={() => text(field.key), (v) => (editing.values[field.key] = v)}
             aria-invalid={badKey === field.key}
             disabled={editing.applying}
@@ -132,7 +122,9 @@
                   <span class="label">{column(name)}</span>
                   <textarea
                     class="input"
+                    class:mono={CODE.has(name)}
                     rows="1"
+                    spellcheck={CODE.has(name) ? "false" : undefined}
                     bind:value={row.cells[name]}
                     disabled={editing.applying}
                   ></textarea>

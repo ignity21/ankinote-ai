@@ -2,7 +2,15 @@
   import CardPreview from "../components/CardPreview.svelte";
   import FieldEditor from "../components/FieldEditor.svelte";
   import Pane from "../components/Pane.svelte";
-  import { KINDS, type MediaGap, type SavedNote } from "../lib/api";
+  import {
+    KINDS,
+    STEM_TYPES,
+    type MathError,
+    type MediaGap,
+    type SavedNote,
+    type StemType,
+  } from "../lib/api";
+  import { editErrorText } from "../lib/editText";
   import { session, type Row } from "../lib/generate.svelte";
   import { t, type MessageKey } from "../lib/i18n.svelte";
   import en from "../lib/locales/en.json";
@@ -20,6 +28,48 @@
   const row = $derived(session.selected);
   const note = $derived(row?.note ?? null);
   const editing = $derived(row?.editing ?? null);
+  /** A STEM edit: the form and the card side by side, the card following the form. */
+  const live = $derived(!!editing?.isLive);
+  /** Too narrow for side by side: the form and the card are tabs. */
+  const tabbed = $derived(width <= 760);
+  const pictures = $derived(session.kind === "word" || session.kind === "stem");
+
+  const TABS = ["form", "preview"] as const;
+
+  let instruction = $state("");
+  let rewriteType = $state<StemType | "">("");
+  let liveTab = $state<"form" | "preview">("form");
+  /** The live card starts on its back, where most of what's edited is. */
+  let liveBack = $state(true);
+  /** Formulas the preview couldn't typeset, for the note shown (by id). */
+  let math = $state<{ id: string; errors: MathError[] }>({ id: "", errors: [] });
+  let liveMath = $state<MathError[]>([]);
+
+  function typeName(type: string): string {
+    return t(`stem.type.${type}` as MessageKey);
+  }
+
+  async function submitRewrite() {
+    if (!row) return;
+    const target = row;
+    if (await session.rewrite(target, instruction, rewriteType || undefined)) {
+      instruction = "";
+      rewriteType = "";
+    }
+  }
+
+  function changeFailureText(r: Row): string {
+    const f = r.changeFailure;
+    if (!f) return "";
+    if (f.during === "undo") return t("undo.err", { detail: f.detail || f.code });
+    if (f.code === "blank") return t("rewrite.err.blank");
+    if (f.code === "draft_gone") return t("generate.saveErr.draft_gone");
+    return message("generate.err", f.code, { detail: f.detail });
+  }
+
+  function rewriteSeconds(r: Row): number {
+    return Math.max(0, Math.round((session.now - r.rewriting) / 1000));
+  }
 
   function previewTitle(): string {
     if (!row) return t("generate.preview");
@@ -50,14 +100,17 @@
 
   function status(r: Row): string {
     if (r.state === "generating") return t("generate.state.generating", { s: seconds(r) });
-    if (r.state === "ready" && r.failure) return t("generate.state.unsaved");
+    if (r.rewriting) return t("generate.state.generating", { s: rewriteSeconds(r) });
+    if (r.state === "ready" && r.failure?.during === "save") return t("generate.state.unsaved");
     return t(`generate.state.${r.state}` as MessageKey);
   }
 
   /** What the queue row says under the word: missing media, in short. */
   function shortGaps(r: Row): string {
     const kinds = new Set(r.notes.flatMap((n) => n.gaps.map((g) => g.kind)));
-    return [...kinds].map((kind) => t(`generate.short.${kind}`)).join(" · ");
+    return [...kinds]
+      .map((kind) => t(r.kind === "stem" && kind === "image" ? "generate.short.stemImage" : `generate.short.${kind}`))
+      .join(" · ");
   }
 
   function gapText(gap: MediaGap): string {
@@ -114,15 +167,31 @@
     } else if (event.key === "e" && row?.saveable && !row.editing) {
       event.preventDefault();
       session.edit(row);
+    } else if (event.key === "u" && row?.note?.can_undo) {
+      void session.undo(row);
     }
   }
 </script>
 
 <svelte:window onkeydown={onKey} />
 
-<div class="work" class:editing={!!editing} bind:clientWidth={width}>
-  <!-- A phone needs the room for the editor; nothing is generated meanwhile. -->
-  {#if !(phone && editing)}
+{#snippet mathList(errors: MathError[])}
+  {#if errors.length}
+    <div class="math-errors" role="alert">
+      <p>{t("preview.mathErr")}</p>
+      <ul>
+        {#each errors as error, i (i)}
+          <li><code>{error.tex}</code> — {error.message || t("preview.mathUnclosed")}</li>
+        {/each}
+      </ul>
+    </div>
+  {/if}
+{/snippet}
+
+<div class="work" class:editing={!!editing} class:live bind:clientWidth={width}>
+  <!-- A phone needs the room for the editor, and a live editor the whole
+       width; nothing is generated meanwhile. -->
+  {#if !(phone && editing) && !live}
   <Pane title={t("generate.input")} area="input">
     <form
       class="ask"
@@ -179,8 +248,27 @@
         {/if}
       </label>
 
+      {#if session.kind === "stem"}
+        <div class="types">
+          <div class="chips" role="radiogroup" aria-label={t("generate.stemType")}>
+            {#each ["auto", ...STEM_TYPES] as type (type)}
+              <button
+                type="button"
+                role="radio"
+                aria-checked={session.stemType === type}
+                class:on={session.stemType === type}
+                onclick={() => (session.stemType = type as StemType | "auto")}
+              >
+                {type === "auto" ? t("generate.stemType.auto") : typeName(type)}
+              </button>
+            {/each}
+          </div>
+          {#if session.stemType === "auto"}<span class="note">{t("generate.stemTypeHint")}</span>{/if}
+        </div>
+      {/if}
+
       <div class="opts">
-        {#if session.kind === "word"}
+        {#if pictures}
           <label title={session.imageAvailable ? "" : t("generate.imageOff")}>
             <input
               type="checkbox"
@@ -188,15 +276,19 @@
               disabled={!session.imageAvailable}
               onchange={(e) => (session.image = e.currentTarget.checked)}
             />
-            {t("generate.image")}
+            {t(session.kind === "stem" ? "generate.diagram" : "generate.image")}
           </label>
         {/if}
-        <label>
-          <input type="checkbox" bind:checked={session.audio} />
-          {t("generate.audio")}
-        </label>
-        {#if session.kind === "word" && !session.imageAvailable}
+        {#if session.kind !== "stem"}
+          <label>
+            <input type="checkbox" bind:checked={session.audio} />
+            {t("generate.audio")}
+          </label>
+        {/if}
+        {#if pictures && !session.imageAvailable}
           <span class="note off">{t("generate.imageOff")}</span>
+        {:else if session.kind === "stem" && session.image}
+          <span class="note off">{t("generate.diagramHint")}</span>
         {/if}
       </div>
 
@@ -213,6 +305,7 @@
   </Pane>
   {/if}
 
+  {#if !live}
   <Pane title={t("generate.queue")} area="queue" fill>
     {#if session.rows.length}
       <ul class="queue" bind:this={queueList}>
@@ -221,7 +314,7 @@
             <button
               class="qi {r.state}"
               class:on={r.id === session.selectedId}
-              class:unsaved={r.state === "ready" && r.failure}
+              class:unsaved={r.state === "ready" && r.failure?.during === "save"}
               data-id={r.id}
               aria-current={r.id === session.selectedId ? "true" : undefined}
               onclick={() => session.select(r)}
@@ -232,7 +325,7 @@
                 {:else if r.state === "saved"}✓{:else if r.state === "failed"}✗{:else if r.state === "queued"}○{:else}●{/if}
               </span>
               <span class="qw">{r.text}</span>
-              <span class="qs">{status(r)}</span>
+              <span class="qs" class:busy={!!r.rewriting}>{status(r)}</span>
               {#if r.state === "ready" || r.state === "saved"}
                 {@const gaps = shortGaps(r)}
                 {#if gaps}<span class="qn">{gaps}</span>{/if}
@@ -253,9 +346,10 @@
       <p class="empty">{t("generate.queueEmpty")}</p>
     {/if}
   </Pane>
+  {/if}
 
   <Pane title={previewTitle()} area="preview" fill>
-    <div class="stage">
+    <div class="stage" class:split={live}>
       {#if !row}
         <p class="empty">{t("generate.previewEmpty")}</p>
       {:else if row.state === "queued"}
@@ -267,6 +361,38 @@
         </div>
       {:else if row.state === "failed"}
         <p class="error" role="alert">{failureText(row)}</p>
+      {:else if editing && live}
+        {#if tabbed}
+          <div class="tabs segments" role="tablist">
+            {#each TABS as tab (tab)}
+              <button
+                role="tab"
+                aria-selected={liveTab === tab}
+                class:on={liveTab === tab}
+                onclick={() => (liveTab = tab)}
+              >
+                {t(`edit.tab.${tab}`)}
+              </button>
+            {/each}
+          </div>
+        {/if}
+        <div class="col" hidden={tabbed && liveTab !== "form"}>
+          <FieldEditor {editing} />
+        </div>
+        <div class="col" hidden={tabbed && liveTab !== "preview"}>
+          {#if editing.liveFailure}
+            <p class="note paused" role="status">
+              {t("edit.livePaused", { error: editErrorText(editing.note.form, editing.liveFailure) })}
+            </p>
+          {/if}
+          {@render mathList(liveMath)}
+          <CardPreview
+            note={editing.note}
+            cards={editing.live ?? editing.note.cards}
+            bind:back={liveBack}
+            onmath={(errors) => (liveMath = errors)}
+          />
+        </div>
       {:else if editing}
         <FieldEditor {editing} />
       {:else if note}
@@ -286,9 +412,45 @@
             {/each}
           </ul>
         {/if}
-        <CardPreview {note} />
+        {#if row.rewriting}
+          <p class="mono busy" role="status">{t("rewrite.working", { s: rewriteSeconds(row) })}</p>
+        {/if}
+        {#if math.id === note.id}{@render mathList(math.errors)}{/if}
+        <div class="framed" class:dim={!!row.rewriting}>
+          <CardPreview {note} onmath={(errors) => (math = { id: note.id, errors })} />
+        </div>
       {/if}
     </div>
+
+    {#if row && note?.kind === "stem" && !editing && (row.saveable || row.rewriting)}
+      <form
+        class="rewrite"
+        onsubmit={(event) => {
+          event.preventDefault();
+          void submitRewrite();
+        }}
+      >
+        <input
+          class="input ask-ai"
+          bind:value={instruction}
+          aria-label={t("rewrite.label")}
+          placeholder={t("rewrite.placeholder")}
+          maxlength="500"
+          disabled={row.busy}
+          autocomplete="off"
+        />
+        <select class="input" bind:value={rewriteType} aria-label={t("rewrite.type")} disabled={row.busy}>
+          <option value="">{t("rewrite.sameType")}</option>
+          {#each STEM_TYPES.filter((type) => type !== note.variant) as type (type)}
+            <option value={type}>{t("rewrite.asType", { type: typeName(type) })}</option>
+          {/each}
+        </select>
+        <button class="secondary" type="submit" disabled={row.busy || (!instruction.trim() && !rewriteType)}>
+          {t("rewrite.submit")} <kbd class="hint">↵</kbd>
+        </button>
+        <span class="note">{t("rewrite.hint")}</span>
+      </form>
+    {/if}
 
     {#if row && editing}
       <div class="actions">
@@ -307,7 +469,9 @@
       </div>
     {:else if row && (row.saveable || row.state === "saving" || row.state === "failed")}
       <div class="actions">
-        {#if row.failure && row.state !== "failed"}
+        {#if row.changeFailure}
+          <p class="error" role="alert">{changeFailureText(row)}</p>
+        {:else if row.failure && row.state !== "failed"}
           <p class="error" role="alert">{failureText(row)}</p>
         {:else if row.state === "saved" && row.saved}
           <p class="note" role="status">
@@ -323,7 +487,7 @@
             <button
               class={row.state === "saved" ? "secondary" : "primary"}
               onclick={() => session.save(row)}
-              disabled={!row.saveable}
+              disabled={!row.saveable || !!row.rewriting || row.undoing}
             >
               {row.state === "saving"
                 ? t("generate.saving")
@@ -341,8 +505,13 @@
             {t("generate.regen")} <kbd class="hint">R</kbd>
           </button>
           {#if row.state !== "failed"}
-            <button class="secondary" onclick={() => session.edit(row)} disabled={!row.saveable}>
+            <button class="secondary" onclick={() => session.edit(row)} disabled={!row.saveable || row.busy}>
               {t("edit.open")} <kbd class="hint">E</kbd>
+            </button>
+          {/if}
+          {#if note?.can_undo}
+            <button class="secondary" onclick={() => session.undo(row)} disabled={row.busy}>
+              {t("undo")} <kbd class="hint">U</kbd>
             </button>
           {/if}
         </div>
@@ -737,6 +906,163 @@
 
   .error {
     color: var(--err);
+  }
+
+  /* STEM */
+  .types {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .chips button {
+    min-height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--outer);
+    color: var(--muted);
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  .chips button:hover {
+    color: var(--fg);
+  }
+
+  .chips button.on {
+    border-color: var(--accent);
+    background: var(--sel);
+    color: var(--fg);
+  }
+
+  .busy,
+  .qs.busy {
+    color: var(--warn);
+  }
+
+  .dim {
+    opacity: 0.5;
+    transition: opacity 0.2s;
+  }
+
+  .math-errors {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--err);
+    border-radius: 6px;
+    background: var(--outer);
+    font-size: 14px;
+  }
+
+  .math-errors p {
+    margin: 0;
+  }
+
+  .math-errors ul {
+    margin: 6px 0 0;
+    padding-left: 18px;
+  }
+
+  .math-errors code {
+    font-family: var(--mono);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+
+  .rewrite {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding-top: 12px;
+    margin-top: 4px;
+    border-top: 1px solid var(--border);
+  }
+
+  .rewrite .ask-ai {
+    flex: 1 1 240px;
+    width: auto;
+  }
+
+  .rewrite select {
+    width: auto;
+  }
+
+  .rewrite .note {
+    flex-basis: 100%;
+  }
+
+  .rewrite + .actions {
+    margin-top: 0;
+    border-top: 0;
+  }
+
+  /* A live edit: the form and the card side by side, each scrolling. */
+  .work.live {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "preview";
+  }
+
+  .stage.split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 16px;
+    overflow: hidden;
+  }
+
+  .stage.split:has(.tabs) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+    overflow-y: auto;
+    margin: 0 -4px;
+    padding: 2px 4px 8px;
+  }
+
+  .col[hidden] {
+    display: none;
+  }
+
+  .paused {
+    color: var(--warn);
+  }
+
+  .segments {
+    display: inline-flex;
+    justify-self: start;
+    gap: 4px;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--outer);
+  }
+
+  .segments button {
+    min-height: 36px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    cursor: pointer;
+  }
+
+  .segments button.on {
+    background: var(--sel);
   }
 
   @media (prefers-reduced-motion: reduce) {

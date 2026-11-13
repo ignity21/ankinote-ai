@@ -246,3 +246,57 @@ def test_a_models_own_rule_is_an_invalid_edit() -> None:
 
     assert raised.value.code == "invalid"
     assert "duplicate" in raised.value.detail
+
+
+def _formula():
+    from ankinote.collections.stem.models import FormulaModel
+
+    return FormulaModel(
+        front="Newton's second law?",
+        latex="F = ma",
+        meaning="Force is mass times acceleration.",
+        variables=[{"symbol": "F", "description": "force"}],
+        conditions="Inertial frame.",
+        derivation="From momentum.",
+        tags=["Physics"],
+    )
+
+
+def test_a_stem_form_offers_its_own_type_fields() -> None:
+    from ankinote.collections.stem.models import EDIT_FORMS, CardType
+
+    form = {f["key"]: f for f in describe(_formula(), EDIT_FORMS[CardType.FORMULA])}
+
+    assert list(form) == [
+        "front",
+        "latex",
+        "meaning",
+        "variables",
+        "conditions",
+        "derivation",
+        "tags",
+    ]
+    assert form["latex"]["required"] and not form["derivation"]["required"]
+    assert form["variables"]["value"] == [
+        {"id": 0, "cells": {"symbol": "F", "description": "force"}}
+    ]
+    assert form["tags"] == {
+        "key": "tags",
+        "type": "lines",
+        "min": 0,
+        "max": None,
+        "value": ["Physics"],
+    }
+
+
+def test_a_blank_optional_stem_field_is_kept_empty() -> None:
+    from ankinote.collections.stem.models import EDIT_FORMS, CardType
+
+    form = EDIT_FORMS[CardType.FORMULA]
+    revised = revise(_formula(), form, {"derivation": "  ", "variables": []})
+
+    assert revised.derivation == ""
+    assert revised.variables == []
+    with pytest.raises(EditError) as raised:
+        revise(_formula(), form, {"latex": " "})
+    assert (raised.value.code, raised.value.key) == ("blank", "latex")

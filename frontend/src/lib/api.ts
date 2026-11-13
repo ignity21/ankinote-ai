@@ -113,8 +113,15 @@ export type Languages = {
   targets: { id: string; beta: boolean }[];
 };
 /** What a line of input becomes. */
-export type Kind = "word" | "phrase" | "sentence";
-export const KINDS: Kind[] = ["word", "phrase", "sentence"];
+export type Kind = "word" | "phrase" | "sentence" | "stem";
+export const KINDS: Kind[] = ["word", "phrase", "sentence", "stem"];
+
+/** The four STEM note types; generating can also let the model choose. */
+export type StemType = "concept" | "formula" | "procedure" | "example";
+export const STEM_TYPES: StemType[] = ["concept", "formula", "procedure", "example"];
+
+/** A formula MathJax couldn't typeset: its TeX and MathJax's message. */
+export type MathError = { tex: string; message: string };
 
 /** Media a card goes without: no model for it, or the model failed. */
 export type MediaGap = { kind: "audio" | "image"; reason: "not_set_up" | "failed"; detail: string };
@@ -138,9 +145,9 @@ export type FormValues = Record<string, string | string[] | FormRow[]>;
 export type DraftNote = {
   id: string;
   kind: Kind;
-  /** The word, phrase or sentence the note is about. */
+  /** The word, phrase or sentence the note is about; a STEM card's front. */
   headword: string;
-  /** A word's part of speech; empty for phrases and sentences. */
+  /** A word's part of speech, a STEM card's type; empty otherwise. */
   variant: string;
   note_type: string;
   deck: string;
@@ -150,6 +157,8 @@ export type DraftNote = {
   /** The parts that can be edited before saving. */
   form: FormField[];
   note_id: number | null;
+  /** An edit or rewrite can be undone. */
+  can_undo: boolean;
 };
 
 export type SavedNote = { note_id: number; deck: string; sync: SyncView | null };
@@ -218,9 +227,19 @@ export const api = {
     request<AnkiStatus>("POST", "/api/anki/full-sync", { direction }),
   noteTypes: () => request<NoteTypeItem[]>("GET", "/api/anki/note-types"),
   prepareNoteTypes: () => request<NoteTypeItem[]>("POST", "/api/anki/note-types"),
-  generate: (kind: Kind, text: string, media: { image?: boolean; audio?: boolean } = {}) =>
-    request<{ notes: DraftNote[] }>("POST", `/api/cards/${kind}`, { text, ...media }),
+  generate: (
+    kind: Kind,
+    text: string,
+    options: { image?: boolean; audio?: boolean; card_type?: StemType } = {},
+  ) => request<{ notes: DraftNote[] }>("POST", `/api/cards/${kind}`, { text, ...options }),
   editDraft: (id: string, values: FormValues) =>
     request<DraftNote>("PUT", `/api/cards/drafts/${id}/fields`, { values }),
+  /** STEM: the cards with these edits, without applying them. */
+  previewDraft: (id: string, values: FormValues) =>
+    request<{ cards: CardSide[] }>("POST", `/api/cards/drafts/${id}/preview`, { values }),
+  /** STEM: the model rewrites the card as `instruction` asks, maybe as another type. */
+  rewriteDraft: (id: string, instruction: string, card_type?: StemType) =>
+    request<DraftNote>("POST", `/api/cards/drafts/${id}/rewrite`, { instruction, card_type }),
+  undoDraft: (id: string) => request<DraftNote>("POST", `/api/cards/drafts/${id}/undo`),
   saveDraft: (id: string) => request<SavedNote>("POST", `/api/cards/drafts/${id}/save`),
 };

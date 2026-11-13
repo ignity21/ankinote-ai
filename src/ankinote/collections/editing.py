@@ -197,7 +197,9 @@ def revise[M: BaseModel](model: M, form: Form, values: Mapping[str, Any]) -> M:
             text = _text(key, raw, holder[name])
             if not text and info.is_required():
                 raise EditError("blank", key)
-            holder[name] = text or None
+            # Blank goes back to the field's default: None, or "" for a text
+            # the card may leave empty.
+            holder[name] = text or info.get_default(call_default_factory=True)
             continue
         if isinstance(field, Lines):
             items: list = _lines(key, raw)

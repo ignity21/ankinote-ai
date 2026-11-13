@@ -27,6 +27,21 @@ remain available. Upserts are scoped by note type as well as front and deck.
 The legacy `AINote STEM` is no longer created or updated. Existing legacy notes
 are left alone; there is no automatic migration or deletion.
 
+## STEM in the 1.0 web app (shipped 2026-11-13; follow-ups)
+
+Generate → MathJax preview → live edit → rewrite with an instruction → save,
+on `feat/1.0`; see the design language's Generate page notes. Decided to
+leave for later:
+
+- **Fix LaTeX**: when the preview reports a broken formula, a button that
+  sends the field and MathJax's message to the text model. Next step.
+- Per-field rewrite / simplify buttons: only if users keep wanting to change
+  one field.
+- "Explain" (tutoring) is out of scope for 1.0: it makes the app a learning
+  companion rather than a card maker.
+- Not yet in the web app, but in 0.x: a reference image (a photographed
+  problem) as input, and the thinking level.
+
 ## Comparison card type (next)
 
 Add `AINote STEM Comparison` with its own model, prompt, field set, and templates.
