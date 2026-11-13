@@ -199,3 +199,40 @@ async def synthesize_all(
             logger.warning(f"Speech failed, card made without audio: {result}")
             return [], [MediaGap("audio", "failed", str(result))]
     return cast(list[bytes], results), []
+
+
+class AudioUnavailable(Exception):
+    """An edit needs new audio that can't be made; the card is left as it was.
+
+    ``reason`` is ``not_set_up`` (no speech model) or ``failed``.
+    """
+
+    def __init__(
+        self, reason: Literal["not_set_up", "failed"], detail: str = ""
+    ) -> None:
+        super().__init__(detail or reason)
+        self.reason = reason
+        self.detail = detail
+
+
+async def respeak(
+    tts: SpeechSynthesizer | None,
+    clips: dict[str, bytes],
+    texts: list[str],
+    target_lang: Language,
+) -> list[bytes]:
+    """Audio for ``texts``, reusing ``clips`` (by text) and making only the rest.
+
+    Raises:
+        AudioUnavailable: a text has no clip and none can be made. An edited
+            card never silently loses the audio it had.
+    """
+    missing = [text for text in dict.fromkeys(texts) if text not in clips]
+    if missing:
+        if tts is None:
+            raise AudioUnavailable("not_set_up")
+        made, gaps = await synthesize_all(tts, missing, target_lang)
+        if gaps:
+            raise AudioUnavailable("failed", gaps[0].detail)
+        clips = {**clips, **dict(zip(missing, made, strict=True))}
+    return [clips[text] for text in texts]

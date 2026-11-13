@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, Field, model_validator
 
+from ankinote.collections.editing import Form, Lines, Rows, Text
+
 
 class Sense(BaseModel):
     """A compact sense summary used to build learning-oriented cards."""
@@ -54,6 +56,21 @@ class PhraseModel(BaseModel):
             msg = "supporting_meanings must not duplicate core_meaning"
             raise ValueError(msg)
         return self
+
+
+# What a user may change before saving, in the order the card shows it.
+EDIT_FORM: Form = (
+    Text("difficulty"),
+    Text("core_meaning.target_text", multiline=True),
+    Text("core_meaning.native_text"),
+    Text("usage_pattern", multiline=True),
+    Rows("examples", ("sentence", "translation")),
+    Rows("supporting_meanings", ("target_text", "native_text")),
+    Lines("confusions"),
+    Text("etymology_or_memory", multiline=True),
+    Lines("associations"),
+    Text("production_hint", multiline=True),
+)
 
 
 @dataclass

@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
+from ankinote.collections.editing import Form, Lines, Rows, Text
+
 
 class PhraseModel(BaseModel):
     """Structured phrase model for AI generation.
@@ -29,6 +31,14 @@ class SentenceModel(BaseModel):
     native_sentence: str
     notes: list[str] = []
     phrases: list[PhraseModel] = []
+
+
+# What a user may change before saving, in the order the card shows it.
+EDIT_FORM: Form = (
+    Text("native_sentence", multiline=True),
+    Rows("phrases", ("phrase", "translation", "example")),
+    Lines("notes"),
+)
 
 
 @dataclass

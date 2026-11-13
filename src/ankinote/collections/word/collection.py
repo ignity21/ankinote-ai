@@ -9,7 +9,11 @@ from typing import Self
 
 from loguru import logger
 
-from ankinote.collections.common import convert_to_html_ruby, strip_phonetic_annotations
+from ankinote.collections.common import (
+    convert_to_html_ruby,
+    respeak,
+    strip_phonetic_annotations,
+)
 from ankinote.consts import RUBY_ANNOTATION_LANGUAGES, Language
 from ankinote.services.ai import (
     DISABLE_REASONING,
@@ -197,6 +201,32 @@ class WordCollection:
             tags=tags or [self._target_language.value, "AI-generated", "Word"],
         )
 
+    async def revise_card(self, card: WordCardData, model: WordModel) -> WordCardData:
+        """``card`` with an edited ``model``; changed examples get new audio.
+
+        Raises:
+            AudioUnavailable: a changed example needs audio that can't be made.
+        """
+        media = card.media
+        if media.headword_audio is None:  # made without audio: stays so
+            return WordCardData(model=model, media=media)
+        clips = dict(
+            zip(
+                (example.sentence for example in card.model.examples),
+                media.example_audios,
+                strict=True,
+            )
+        )
+        audios = await respeak(
+            self._tts_service,
+            clips,
+            [example.sentence for example in model.examples],
+            self._target_language,
+        )
+        return WordCardData(
+            model=model, media=dataclasses.replace(media, example_audios=audios)
+        )
+
     def note_fields(self, card: WordCardData) -> dict[str, str]:
         """The note's fields as Anki will store them."""
         return self._convert_to_note_type(card.model, self.media_names(card))
@@ -275,9 +305,23 @@ class WordCollection:
             return note_id
 
     async def _store_media_files(self, card_data: WordCardData) -> MediaReferences:
-        for name, data in self.media_files(card_data).items():
-            await self._anki.media.store_file(name, data)
-        return self.media_names(card_data)
+        """Store the media; the references use the names Anki actually gave.
+
+        Anki keeps a file it already has under a new name when the content
+        differs (audio for an edited example), so the wanted name may be taken.
+        """
+        stored = {
+            name: await self._anki.media.store_file(name, data) or name
+            for name, data in self.media_files(card_data).items()
+        }
+        names = self.media_names(card_data)
+        return MediaReferences(
+            headword_audio=stored.get(names.headword_audio, names.headword_audio)
+            if names.headword_audio
+            else None,
+            example_audios=[stored.get(n, n) for n in names.example_audios],
+            images={i: stored.get(n, n) for i, n in names.images.items()},
+        )
 
     def _convert_to_note_type(
         self,

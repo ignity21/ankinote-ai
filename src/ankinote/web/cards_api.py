@@ -6,6 +6,8 @@ plus media, in memory, newest ``_DRAFT_LIMIT``) that the preview renders and
 a closed Anki Desktop never costs a regeneration.
 
 Words, phrases and sentences share this flow; only words have pictures.
+A draft's fields can be edited before saving (``EDIT_FORM`` per kind says
+which); an edited example sentence gets new audio, nothing else is remade.
 """
 
 import asyncio
@@ -22,11 +24,19 @@ from loguru import logger
 from pydantic import BaseModel, Field, ValidationError
 
 from ankinote.card_render import media_path, render_card
-from ankinote.collections.common import MediaGap, strip_phonetic_annotations
+from ankinote.collections.common import (
+    AudioUnavailable,
+    MediaGap,
+    strip_phonetic_annotations,
+)
+from ankinote.collections.editing import EditError, Form, describe, revise
+from ankinote.collections.phrase import models as phrase_models
 from ankinote.collections.phrase import templates as phrase_templates
 from ankinote.collections.phrase.collection import PhraseCollection
+from ankinote.collections.sentence import models as sentence_models
 from ankinote.collections.sentence import templates as sentence_templates
 from ankinote.collections.sentence.collection import SentenceCollection
+from ankinote.collections.word import models as word_models
 from ankinote.collections.word import templates as word_templates
 from ankinote.collections.word.collection import WordCollection
 from ankinote.consts import Language
@@ -65,6 +75,8 @@ class CardCollection(Protocol):
 
     async def generate_cards(self, text: str, /) -> Sequence[Any]: ...
 
+    async def revise_card(self, card: Any, model: Any, /) -> Any: ...
+
     def note_fields(self, card: Any, /) -> dict[str, str]: ...
 
     def media_files(self, card: Any, /) -> dict[str, bytes]: ...
@@ -78,6 +90,12 @@ _STYLES: dict[Kind, Callable[[], str]] = {
     "word": word_templates.load_card_style,
     "phrase": phrase_templates.load_card_style,
     "sentence": sentence_templates.load_card_style,
+}
+
+_FORMS: dict[Kind, Form] = {
+    "word": word_models.EDIT_FORM,
+    "phrase": phrase_models.EDIT_FORM,
+    "sentence": sentence_models.EDIT_FORM,
 }
 
 
@@ -134,6 +152,8 @@ class Draft:
     fields: dict[str, str]
     files: dict[str, bytes]
     note_id: int | None = None
+    # Bumped by each edit: a re-made clip keeps its name, so its URL changes.
+    revision: int = 0
 
 
 _drafts: OrderedDict[str, Draft] = OrderedDict()
@@ -171,7 +191,7 @@ def _draft_out(draft: Draft, collection: CardCollection) -> dict:
     prefix = _media_prefix(draft.id)
 
     def url(name: str) -> str:
-        return media_path(prefix, name)
+        return f"{media_path(prefix, name)}?v={draft.revision}"
 
     cards = []
     for template in collection.card_templates():
@@ -194,6 +214,7 @@ def _draft_out(draft: Draft, collection: CardCollection) -> dict:
         ],
         "css": _STYLES[draft.kind](),
         "cards": cards,
+        "form": describe(draft.card.model, _FORMS[draft.kind]),
         "note_id": draft.note_id,
     }
 
@@ -270,6 +291,49 @@ def _draft(draft_id: str) -> Draft:
     if draft is None:
         raise _fail(404, "draft_gone")
     return draft
+
+
+class FieldsIn(BaseModel):
+    values: dict[str, Any] = Field(
+        description="Edited form values by field key; keys left out stay as they are."
+    )
+
+
+@router.put("/drafts/{draft_id}/fields")
+async def edit_fields(draft_id: str, body: FieldsIn) -> dict:
+    """Apply edited fields to a draft and return its new preview.
+
+    422 ``blank`` / ``too_few`` / ``too_many`` / ``too_long`` / ``invalid``
+    with the field's key as ``detail``; 502 ``audio_not_set_up`` /
+    ``audio_failed`` when a changed sentence needs audio that can't be made.
+    Either way the draft is left as it was.
+    """
+    draft = _draft(draft_id)
+    try:
+        model = revise(draft.card.model, _FORMS[draft.kind], body.values)
+    except EditError as exc:
+        raise _fail(422, exc.code, exc.key) from exc
+    settings = load_settings()
+    apply_env(settings)
+    collection = _build(
+        draft.kind,
+        None,
+        native=draft.native,
+        target=draft.target,
+        tts=optional_speech_service(settings, draft.target),
+    )
+    try:
+        async with asyncio.timeout(GENERATE_TIMEOUT_SECONDS):
+            card = await collection.revise_card(draft.card, model)
+    except TimeoutError as exc:
+        raise _fail(504, "timeout") from exc
+    except AudioUnavailable as exc:
+        raise _fail(502, f"audio_{exc.reason}", exc.detail) from exc
+    draft.card = card
+    draft.fields = collection.note_fields(card)
+    draft.files = collection.media_files(card)
+    draft.revision += 1
+    return _draft_out(draft, collection)
 
 
 @router.get("/drafts/{draft_id}/media/{name}")

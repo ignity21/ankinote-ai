@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, Field
 
+from ankinote.collections.editing import Form, Lines, Rows, Text
+
 
 class Sense(BaseModel):
     """A compact sense summary used to build learning-oriented cards."""
@@ -35,6 +37,20 @@ class WordModel(BaseModel):
     collocations: list[str] = Field(default_factory=list, max_length=4)
     confusions: list[str] = Field(default_factory=list, max_length=2)
     etymology_or_memory: str | None = None
+
+
+# What a user may change before saving, in the order the card shows it.
+EDIT_FORM: Form = (
+    Text("pronunciation"),
+    Text("difficulty"),
+    Text("core_meaning.target_text", multiline=True),
+    Text("core_meaning.native_text"),
+    Text("morphology"),
+    Rows("examples", ("sentence", "translation")),
+    Lines("collocations"),
+    Lines("confusions"),
+    Text("etymology_or_memory", multiline=True),
+)
 
 
 @dataclass

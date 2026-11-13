@@ -191,6 +191,12 @@ class SentenceCollection:
             tags=tags or [self._target_language.value, "AI-generated", "Sentence"],
         )
 
+    async def revise_card(
+        self, card: SentenceCardData, model: SentenceModel
+    ) -> SentenceCardData:
+        """``card`` with an edited ``model``; the sentence (and its audio) stay."""
+        return SentenceCardData(model=model, media=card.media)
+
     def note_fields(self, card: SentenceCardData) -> dict[str, str]:
         """The note's fields as Anki will store them."""
         return self._convert_to_note_type(card.model, self.media_names(card))
@@ -246,10 +252,13 @@ class SentenceCollection:
             return note_id
 
     async def _store_media_files(self, card_data: SentenceCardData) -> MediaReferences:
-        """Store media files in Anki and return their references."""
-        for name, data in self.media_files(card_data).items():
-            await self._anki.media.store_file(name, data)
-        return self.media_names(card_data)
+        """Store the media; the reference uses the name Anki actually gave."""
+        stored = {
+            name: await self._anki.media.store_file(name, data) or name
+            for name, data in self.media_files(card_data).items()
+        }
+        name = self.media_names(card_data).pron_audio
+        return MediaReferences(pron_audio=stored.get(name, name) if name else None)
 
     def _convert_to_note_type(
         self,

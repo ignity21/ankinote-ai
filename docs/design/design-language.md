@@ -124,7 +124,21 @@ model is set up; only word cards have pictures, so the switch shows for
 Word only. A note type with one card template (Sentence: Production)
 shows the template's name instead of a one-option switch. Keys: `Ctrl+S` saves the selected row (also from the text
 field), `R` regenerates, `↑`/`↓` select. The queue is per browser tab: a
-reload starts a new session. Still to come: the STEM kind and Edit fields.
+reload starts a new session. Still to come: the STEM kind.
+
+Edit fields, built 2026-11-13: "Edit fields" (`E`) under a ready or saved
+preview swaps the card for a form of what the note's model says (not raw
+field HTML, so the classes baked into fields stay right): text fields, list
+fields one item per line with their limit ("up to 4"), and record lists
+(examples, senses, key phrases) as numbered rows with Add / Remove inside
+the model's min/max. The headword, part of speech and image prompts aren't
+offered; changing those means generating again. Apply (`Ctrl+Enter`) or
+Cancel (`Esc`); `Ctrl+S` applies, then saves. Only a changed example
+sentence gets new audio; if it can't (no speech model, or it fails) the
+edit is refused and the card keeps the audio it had. A refused edit names
+the field and outlines it. Applying to a saved row sets it back to ready,
+since Anki has the old fields until it's saved again (same note, updated).
+On a phone the input pane is hidden while editing, to give the form room.
 
 ## First-run wizard
 

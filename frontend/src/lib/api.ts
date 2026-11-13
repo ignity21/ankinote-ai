@@ -122,6 +122,18 @@ export type MediaGap = { kind: "audio" | "image"; reason: "not_set_up" | "failed
 /** One card of a note, both sides rendered from the real Anki templates. */
 export type CardSide = { name: string; front: string; back: string };
 
+/** A record in a list field; `id` ties it to the generated one (new rows have none). */
+export type FormRow = { id?: number; cells: Record<string, string> };
+
+/** One editable part of a note, with its value and the model's limits. */
+export type FormField =
+  | { key: string; type: "text" | "area"; required: boolean; value: string }
+  | { key: string; type: "lines"; min: number; max: number | null; value: string[] }
+  | { key: string; type: "rows"; min: number; max: number | null; columns: string[]; value: FormRow[] };
+
+/** What the edit endpoint takes: lines as a list, rows with their ids. */
+export type FormValues = Record<string, string | string[] | FormRow[]>;
+
 /** A generated, unsaved note; `note_id` is set once it's saved. */
 export type DraftNote = {
   id: string;
@@ -135,6 +147,8 @@ export type DraftNote = {
   gaps: MediaGap[];
   css: string;
   cards: CardSide[];
+  /** The parts that can be edited before saving. */
+  form: FormField[];
   note_id: number | null;
 };
 
@@ -206,5 +220,7 @@ export const api = {
   prepareNoteTypes: () => request<NoteTypeItem[]>("POST", "/api/anki/note-types"),
   generate: (kind: Kind, text: string, media: { image?: boolean; audio?: boolean } = {}) =>
     request<{ notes: DraftNote[] }>("POST", `/api/cards/${kind}`, { text, ...media }),
+  editDraft: (id: string, values: FormValues) =>
+    request<DraftNote>("PUT", `/api/cards/drafts/${id}/fields`, { values }),
   saveDraft: (id: string) => request<SavedNote>("POST", `/api/cards/drafts/${id}/save`),
 };

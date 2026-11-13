@@ -3,17 +3,69 @@
  * row that generates in the background (a few at a time), and the preview
  * follows the selected row. Nothing reaches Anki until a row is saved.
  *
+ * A ready or saved note can have its fields edited first (`Editing`);
+ * applying an edit replaces the note's preview, and a saved row goes back
+ * to ready until it's saved again.
+ *
  * The session lives at module level, so switching workspaces keeps it; a
  * reload starts a new one (drafts are in the server's memory anyway).
  */
-import { api, ApiError, type DraftNote, type Kind, type SavedNote } from "./api";
+import {
+  api,
+  ApiError,
+  type DraftNote,
+  type FormField,
+  type FormRow,
+  type FormValues,
+  type Kind,
+  type SavedNote,
+} from "./api";
 
 /** Providers rate-limit; two at a time keeps a batch moving without 429s. */
 const CONCURRENCY = 2;
 const STORAGE_KEY = "ankinote.generate";
 
 export type RowState = "queued" | "generating" | "ready" | "saving" | "saved" | "failed";
-export type Failure = { code: string; detail: string; during: "generate" | "save" };
+export type Failure = { code: string; detail: string; during: "generate" | "save" | "edit" };
+
+/** The editor's working copy: a lines field is one text, one item per line. */
+export type EditValues = Record<string, string | FormRow[]>;
+
+function editValues(form: FormField[]): EditValues {
+  return Object.fromEntries(
+    form.map((f) => [f.key, f.type === "lines" ? f.value.join("\n") : $state.snapshot(f.value)]),
+  );
+}
+
+function formValues(form: FormField[], values: EditValues): FormValues {
+  return Object.fromEntries(
+    form.map((f) => {
+      const value = values[f.key]!;
+      return [f.key, f.type === "lines" ? (value as string).split("\n") : $state.snapshot(value)];
+    }),
+  );
+}
+
+/** One note's fields being edited, until applied or cancelled. */
+export class Editing {
+  values = $state<EditValues>({});
+  applying = $state(false);
+  failure = $state<Failure | null>(null);
+  readonly #original: string;
+
+  constructor(readonly note: DraftNote) {
+    this.values = editValues(note.form);
+    this.#original = JSON.stringify(this.payload());
+  }
+
+  payload(): FormValues {
+    return formValues(this.note.form, this.values);
+  }
+
+  get changed(): boolean {
+    return JSON.stringify(this.payload()) !== this.#original;
+  }
+}
 
 export class Row {
   readonly id = crypto.randomUUID();
@@ -25,6 +77,8 @@ export class Row {
   startedAt = $state(0);
   failure = $state<Failure | null>(null);
   saved = $state<SavedNote | null>(null);
+  /** Set while the selected note's fields are being edited. */
+  editing = $state<Editing | null>(null);
 
   constructor(
     readonly kind: Kind,
@@ -41,7 +95,12 @@ export class Row {
   }
 
   get busy(): boolean {
-    return this.state === "queued" || this.state === "generating" || this.state === "saving";
+    return (
+      this.state === "queued" ||
+      this.state === "generating" ||
+      this.state === "saving" ||
+      !!this.editing?.applying
+    );
   }
 }
 
@@ -129,6 +188,7 @@ class Session {
 
   regenerate(row: Row) {
     if (row.busy) return;
+    row.editing = null;
     row.state = "queued";
     row.failure = null;
     this.#pump();
@@ -144,9 +204,51 @@ class Session {
     }
   }
 
-  /** Save every note of `row`; saves run one at a time. */
-  save(row: Row): Promise<void> {
-    if (!row.saveable) return Promise.resolve();
+  /** Start editing the note the preview shows. */
+  edit(row: Row) {
+    const note = row.note;
+    if (!note || !row.saveable || row.editing) return;
+    row.editing = new Editing(note);
+  }
+
+  cancelEdit(row: Row) {
+    if (!row.editing?.applying) row.editing = null;
+  }
+
+  /** Send the edit; on success the note's preview is replaced. False if it failed. */
+  async applyEdit(row: Row): Promise<boolean> {
+    const editing = row.editing;
+    if (!editing || editing.applying) return false;
+    if (!editing.changed) {
+      row.editing = null;
+      return true;
+    }
+    editing.applying = true;
+    editing.failure = null;
+    try {
+      const updated = await api.editDraft(editing.note.id, editing.payload());
+      const index = row.notes.findIndex((n) => n.id === updated.id);
+      if (index >= 0) row.notes[index] = updated;
+      if (row.editing === editing) row.editing = null;
+      // Anki has the old fields until this is saved again.
+      if (row.state === "saved") {
+        row.state = "ready";
+        row.saved = null;
+      }
+      row.failure = null;
+      return true;
+    } catch (error) {
+      editing.failure = describe(error, "edit");
+      return false;
+    } finally {
+      editing.applying = false;
+    }
+  }
+
+  /** Save every note of `row` (applying an open edit first); saves run one at a time. */
+  async save(row: Row): Promise<void> {
+    if (row.editing && !(await this.applyEdit(row))) return;
+    if (!row.saveable) return;
     row.state = "saving";
     row.failure = null;
     const run = this.#saving.then(async () => {

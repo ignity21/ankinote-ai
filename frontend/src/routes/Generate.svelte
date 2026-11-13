@@ -1,5 +1,6 @@
 <script lang="ts">
   import CardPreview from "../components/CardPreview.svelte";
+  import FieldEditor from "../components/FieldEditor.svelte";
   import Pane from "../components/Pane.svelte";
   import { KINDS, type MediaGap, type SavedNote } from "../lib/api";
   import { session, type Row } from "../lib/generate.svelte";
@@ -18,6 +19,12 @@
   const lines = $derived(input.split("\n").filter((line) => line.trim()).length);
   const row = $derived(session.selected);
   const note = $derived(row?.note ?? null);
+  const editing = $derived(row?.editing ?? null);
+
+  function previewTitle(): string {
+    if (!row) return t("generate.preview");
+    return t(editing ? "edit.title" : "generate.previewOf", { text: row.text });
+  }
 
   function submit() {
     if (session.add(input)) input = "";
@@ -78,6 +85,19 @@
   }
 
   function onKey(event: KeyboardEvent) {
+    if (row?.editing) {
+      const inEditor = event.target instanceof HTMLElement && !!event.target.closest(".editor");
+      if (event.key === "Escape" && !event.isComposing) {
+        event.preventDefault();
+        session.cancelEdit(row);
+        return;
+      }
+      if (inEditor && (event.ctrlKey || event.metaKey) && event.key === "Enter" && !event.isComposing) {
+        event.preventDefault();
+        void session.applyEdit(row);
+        return;
+      }
+    }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
       if (row) void session.save(row);
@@ -91,13 +111,18 @@
       queueList?.querySelector<HTMLElement>(`[data-id="${session.selectedId}"]`)?.focus();
     } else if (event.key === "r" && row) {
       session.regenerate(row);
+    } else if (event.key === "e" && row?.saveable && !row.editing) {
+      event.preventDefault();
+      session.edit(row);
     }
   }
 </script>
 
 <svelte:window onkeydown={onKey} />
 
-<div class="work" bind:clientWidth={width}>
+<div class="work" class:editing={!!editing} bind:clientWidth={width}>
+  <!-- A phone needs the room for the editor; nothing is generated meanwhile. -->
+  {#if !(phone && editing)}
   <Pane title={t("generate.input")} area="input">
     <form
       class="ask"
@@ -186,6 +211,7 @@
       {/if}
     </form>
   </Pane>
+  {/if}
 
   <Pane title={t("generate.queue")} area="queue" fill>
     {#if session.rows.length}
@@ -228,7 +254,7 @@
     {/if}
   </Pane>
 
-  <Pane title={row ? t("generate.previewOf", { text: row.text }) : t("generate.preview")} area="preview" fill>
+  <Pane title={previewTitle()} area="preview" fill>
     <div class="stage">
       {#if !row}
         <p class="empty">{t("generate.previewEmpty")}</p>
@@ -241,6 +267,8 @@
         </div>
       {:else if row.state === "failed"}
         <p class="error" role="alert">{failureText(row)}</p>
+      {:else if editing}
+        <FieldEditor {editing} />
       {:else if note}
         {#if row.notes.length > 1}
           <div class="pos" role="radiogroup" aria-label={t("generate.pos")}>
@@ -262,7 +290,22 @@
       {/if}
     </div>
 
-    {#if row && (row.saveable || row.state === "saving" || row.state === "failed")}
+    {#if row && editing}
+      <div class="actions">
+        <p class="note" role="status">
+          {editing.applying ? t("edit.applying") : t("edit.where", { deck: editing.note.deck })}
+        </p>
+        <div class="buttons">
+          <button class="primary" onclick={() => session.applyEdit(row)} disabled={editing.applying}>
+            {editing.applying ? t("edit.applyingShort") : t("edit.apply")}
+            <kbd class="hint">Ctrl ↵</kbd>
+          </button>
+          <button class="secondary" onclick={() => session.cancelEdit(row)} disabled={editing.applying}>
+            {t("edit.cancel")} <kbd class="hint">Esc</kbd>
+          </button>
+        </div>
+      </div>
+    {:else if row && (row.saveable || row.state === "saving" || row.state === "failed")}
       <div class="actions">
         {#if row.failure && row.state !== "failed"}
           <p class="error" role="alert">{failureText(row)}</p>
@@ -297,6 +340,11 @@
           >
             {t("generate.regen")} <kbd class="hint">R</kbd>
           </button>
+          {#if row.state !== "failed"}
+            <button class="secondary" onclick={() => session.edit(row)} disabled={!row.saveable}>
+              {t("edit.open")} <kbd class="hint">E</kbd>
+            </button>
+          {/if}
         </div>
       </div>
     {/if}
@@ -749,6 +797,11 @@
 
     .qfoot:not(:has(button)) {
       display: none;
+    }
+
+    .work.editing {
+      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-areas: "queue" "preview";
     }
 
     .hint {
