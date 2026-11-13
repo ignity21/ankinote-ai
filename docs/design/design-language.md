@@ -162,7 +162,12 @@ be revisited); phone shows "Step 2 of 5" with a segmented progress bar.
    ("moon" in the target, its meaning in the native) updates live; beta
    targets carry a `beta` tag and a note. Built 2026-11-13.
 4. **Appearance** (skippable). Palette swatches and follow system / light /
-   dark; the whole app re-themes live.
+   dark; the whole app re-themes live. Built 2026-11-13: each palette is a
+   radio tile with a miniature pane drawn in its own colours (for the mode
+   currently showing) and a one-line note on where it comes from; mode is a
+   three-way segment. Skip puts back the palette and mode the user had when
+   the step opened. The choice is kept in the browser, like the top-bar
+   switches; it isn't in `settings.json` yet.
 5. **First card.** Generate a sample word, preview it, save it to Anki; the
    wizard ends on the saved confirmation.
 

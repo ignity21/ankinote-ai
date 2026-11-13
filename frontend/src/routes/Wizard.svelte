@@ -2,6 +2,7 @@
   import Pane from "../components/Pane.svelte";
   import StepNav from "../components/StepNav.svelte";
   import AnkiStep from "./wizard/AnkiStep.svelte";
+  import AppearanceStep from "./wizard/AppearanceStep.svelte";
   import LanguageStep from "./wizard/LanguageStep.svelte";
   import ModelStep from "./wizard/ModelStep.svelte";
   import { t, type MessageKey } from "../lib/i18n.svelte";
@@ -61,6 +62,8 @@
         <AnkiStep onback={back} onnext={next} />
       {:else if current === 2}
         <LanguageStep onback={back} onnext={next} />
+      {:else if current === 3}
+        <AppearanceStep onback={back} onnext={next} />
       {:else}
         <p class="empty">{t("page.soon")}</p>
         <StepNav
