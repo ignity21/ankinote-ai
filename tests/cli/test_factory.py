@@ -366,3 +366,10 @@ class TestAnkiClientScope:
                 assert collection is built_collection
 
         builder.assert_called_once_with(client, options)
+
+
+def test_options_reject_learning_your_own_language() -> None:
+    with pytest.raises(click.UsageError, match="native language"):
+        LanguageCollectionOptions(
+            native_language=Language.ENGLISH, target_language=Language.ENGLISH
+        )

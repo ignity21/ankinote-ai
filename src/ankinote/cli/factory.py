@@ -11,7 +11,7 @@ from ankinote.collections.phrase import PhraseCollection
 from ankinote.collections.sentence import SentenceCollection
 from ankinote.collections.stem import CardType, StemCollection
 from ankinote.collections.word import WordCollection
-from ankinote.consts import Language
+from ankinote.consts import TARGET_LANGUAGES, Language, language_pair_error
 from ankinote.services.ai import (
     DEFAULT_AI_SERVICE_CONFIG,
     DISABLE_REASONING,
@@ -59,6 +59,21 @@ class LanguageCollectionOptions:
     llm_model: str | None = None
     reasoning_effort: str | None = DISABLE_REASONING
     profile: str | None = None
+
+    def __post_init__(self) -> None:
+        native, target = self.native_language, self.target_language
+        match language_pair_error(native, target):
+            case "same_language":
+                raise click.UsageError(
+                    f"{target} is your native language; choose another --target."
+                )
+            case "not_target":
+                choices = ", ".join(TARGET_LANGUAGES)
+                raise click.UsageError(
+                    f"{target} can't be learned yet. --target is one of: {choices}"
+                )
+            case "not_native":
+                raise click.UsageError(f"{native} isn't a native language choice.")
 
 
 @dataclass(frozen=True, slots=True)

@@ -125,6 +125,51 @@ def test_patch_settings_rejects_unsupported_target(client: TestClient) -> None:
     response = client.patch("/api/settings", json={"target_language": "Korean"})
 
     assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "not_target"
+
+
+def test_patch_settings_rejects_learning_your_own_language(client: TestClient) -> None:
+    response = client.patch(
+        "/api/settings",
+        json={"native_language": "Japanese", "target_language": "Japanese"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "same_language"
+
+
+def test_patch_checks_the_pair_against_the_saved_half(client: TestClient) -> None:
+    # The saved target is English; making English the native would pair it
+    # with itself even though the patch names only one side.
+    response = client.patch("/api/settings", json={"native_language": "English"})
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "same_language"
+    assert load_settings().defaults.native_language == "Chinese(Simplified)"
+
+
+def test_patch_settings_rejects_other_as_native(client: TestClient) -> None:
+    response = client.patch("/api/settings", json={"native_language": "other"})
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "not_native"
+
+
+def test_languages_lists_choices_and_the_saved_pair(client: TestClient) -> None:
+    body = client.get("/api/languages").json()
+
+    assert body["native"] == "Chinese(Simplified)"
+    assert body["target"] == "English"
+    assert "other" not in body["natives"]
+    assert {"English", "Chinese(Traditional)", "Korean"} <= set(body["natives"])
+    assert [t["id"] for t in body["targets"]] == [
+        "English",
+        "French",
+        "Spanish",
+        "German",
+        "Japanese",
+    ]
+    assert all(t["beta"] is False for t in body["targets"])
 
 
 def test_providers_lists_presets_with_recommended_first(client: TestClient) -> None:

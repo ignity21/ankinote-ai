@@ -64,7 +64,9 @@ dark err, Gruvbox light ok). Re-check contrast whenever a value changes.
 
 - Sans: IBM Plex Sans, then the system's Chinese face: `"PingFang SC",
   "Hiragino Sans GB", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans
-  SC", "Microsoft YaHei"`. Mono: IBM Plex Mono with the same CJK fallbacks. Self-host the Plex files (`woff2`, Latin subset plus IPA
+  SC", "Microsoft YaHei"`. Mono: IBM Plex Mono with the same CJK fallbacks.
+  Text marked `lang="ja"`, `"ko"` or `"zh-Hant"` puts that language's faces
+  first (Japanese kanji forms, a Hangul font). Self-host the Plex files (`woff2`, Latin subset plus IPA
   extensions); never load fonts from a CDN at runtime.
 - UI body 15px / 1.5. Card body 16px / 1.6. Pane titles, status and keys
   13px mono (12px for `kbd`). Card headword 40–48px sans semibold. Sentence
@@ -150,7 +152,15 @@ be revisited); phone shows "Step 2 of 5" with a segmented progress bar.
    gets replaced. A deployment-set AnkiWeb account (`ANKIWEB_USERNAME`)
    hides the login form. Anki Desktop shows the AnkiConnect setup steps
    (add-on code `2055492159`) and the address it uses.
-3. **Languages.** Native and target language.
+3. **Languages.** Native ("Language you know best") and target ("Language
+   you're learning") as two radio-tile grids, each language named in itself
+   (`日本語`, `Français`) with its name in the interface language below.
+   The native's own tile is disabled in the target grid ("Your language"),
+   and picking a native that equals the target clears the target. A fresh
+   install (saved pair still the factory Chinese (Simplified) → English)
+   preselects the native from the browser language. An example card
+   ("moon" in the target, its meaning in the native) updates live; beta
+   targets carry a `beta` tag and a note. Built 2026-11-13.
 4. **Appearance** (skippable). Palette swatches and follow system / light /
    dark; the whole app re-themes live.
 5. **First card.** Generate a sample word, preview it, save it to Anki; the

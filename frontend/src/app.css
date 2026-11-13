@@ -19,6 +19,30 @@
   --fg: #dcd7ba;
 }
 
+/* Text marked as Japanese, Korean or Traditional Chinese gets that
+   language's faces first: kanji take Japanese forms, Hangul has a font. */
+:lang(ja) {
+  --cjk: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans CJK JP", "Noto Sans JP",
+    "Yu Gothic", "Meiryo";
+}
+
+:lang(ko) {
+  --cjk: "Apple SD Gothic Neo", "Noto Sans CJK KR", "Noto Sans KR", "Malgun Gothic";
+}
+
+:lang(zh-Hant) {
+  --cjk: "PingFang TC", "Noto Sans CJK TC", "Noto Sans TC", "Microsoft JhengHei";
+}
+
+/* --sans and --mono resolve where they're declared, so redeclare them here. */
+:lang(ja),
+:lang(ko),
+:lang(zh-Hant) {
+  --sans: "IBM Plex Sans", var(--cjk), sans-serif;
+  --mono: "IBM Plex Mono", var(--cjk), monospace;
+  font-family: var(--sans);
+}
+
 *,
 *::before,
 *::after {

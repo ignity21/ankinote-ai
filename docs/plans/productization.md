@@ -124,6 +124,8 @@ GCP project.
    so saving settings no longer records AnkiConnect as a choice nobody made.
    Tested with fake AnkiWeb responses only; a real AnkiWeb login is still to
    be tried.
+   Step 3 (Languages) built 2026-11-13: `GET /api/languages` plus the
+   existing `PATCH /api/settings`; see Phase 2 item 3.
 5. **CLI/TUI parity.** The TUI's TTS menu and `apply_env` follow the new TTS
    setting so both front ends keep sharing `settings.json`.
 
@@ -156,6 +158,13 @@ So "any pair" only needs Chinese and Korean added as targets.
    Ship labelled beta until a competent reader has reviewed sample output.
 3. **Pair validation**: reject native == target; treat Simplified/Traditional
    as distinct natives but one learning direction.
+   Done 2026-11-13 on `feat/1.0`: `consts.language_pair_error` (codes
+   `not_native`, `same_language`, `not_target`) is checked by
+   `PATCH /api/settings` against the pair the patch leaves behind and by the
+   CLI's collection options. `GET /api/languages` lists natives, targets
+   (with a `beta` flag from `BETA_TARGET_LANGUAGES`) and the saved pair, so
+   wizard step 3 offers Chinese and Korean as soon as items 1–2 add them to
+   `TARGET_LANGUAGES`.
 4. **Quality gate**: a fixed list of about 20 words, 10 phrases, and 10
    sentences per target, generated with two native languages (Chinese and
    English) and reviewed by hand before the language leaves beta. Automated

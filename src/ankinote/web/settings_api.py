@@ -11,7 +11,13 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from ankinote.consts import TARGET_LANGUAGES, Language
+from ankinote.consts import (
+    BETA_TARGET_LANGUAGES,
+    NATIVE_LANGUAGES,
+    TARGET_LANGUAGES,
+    Language,
+    language_pair_error,
+)
 from ankinote.model_presets import PRESETS, ROUTES, Route
 from ankinote.model_routes import (
     InvalidDraftError,
@@ -99,15 +105,35 @@ async def get_settings() -> dict:
     return _settings_out(load_settings())
 
 
+@router.get("/languages")
+async def languages() -> dict:
+    """The native and target choices, and the saved pair."""
+    defaults = load_settings().defaults
+    return {
+        "native": defaults.native_language,
+        "target": defaults.target_language,
+        "natives": [lang.value for lang in NATIVE_LANGUAGES],
+        "targets": [
+            {"id": lang.value, "beta": lang in BETA_TARGET_LANGUAGES}
+            for lang in TARGET_LANGUAGES
+        ],
+    }
+
+
 @router.patch("/settings")
 async def patch_settings(patch: SettingsPatch) -> dict:
     settings = load_settings()
-    if patch.target_language is not None:
-        if patch.target_language not in TARGET_LANGUAGES:
-            raise HTTPException(422, f"{patch.target_language} isn't a target yet")
-        settings.defaults.target_language = patch.target_language.value
-    if patch.native_language is not None:
-        settings.defaults.native_language = patch.native_language.value
+    if patch.native_language is not None or patch.target_language is not None:
+        # Check the pair the patch leaves behind, including the saved half.
+        native = patch.native_language or Language(settings.defaults.native_language)
+        target = patch.target_language or Language(settings.defaults.target_language)
+        if code := language_pair_error(native, target):
+            raise HTTPException(
+                422,
+                detail={"code": code, "detail": f"{native} → {target}"},
+            )
+        settings.defaults.native_language = native.value
+        settings.defaults.target_language = target.value
     if patch.generate_image is not None:
         settings.defaults.generate_image = patch.generate_image
     if patch.ui_language is not None:

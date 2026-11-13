@@ -106,6 +106,13 @@ export type NoteTypeItem = {
   result?: "created" | "updated" | "unchanged";
 };
 
+export type Languages = {
+  native: string;
+  target: string;
+  natives: string[];
+  targets: { id: string; beta: boolean }[];
+};
+
 /** A 422 from the server about one route's draft (unknown provider, missing key…). */
 export class DraftError extends Error {
   constructor(
@@ -152,6 +159,7 @@ export const api = {
   settings: () => request<Settings>("GET", "/api/settings"),
   patchSettings: (patch: Partial<Settings["defaults"]> & { ui_language?: string }) =>
     request<Settings>("PATCH", "/api/settings", patch),
+  languages: () => request<Languages>("GET", "/api/languages"),
   providers: () => request<Provider[]>("GET", "/api/models/providers"),
   saveModels: (routes: RoutesIn) => request<Settings>("PUT", "/api/models", routes),
   testModels: (routes: RoutesIn) =>
