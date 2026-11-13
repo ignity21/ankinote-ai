@@ -10,12 +10,15 @@
     note,
     cards = note.cards,
     back = $bindable(false),
+    night,
     onmath,
   }: {
     note: DraftNote;
     /** What to show instead of the note's cards (a live edit). */
     cards?: CardSide[];
     back?: boolean;
+    /** Anki's night mode; follows the app's mode when omitted. */
+    night?: boolean;
     /** Called after each typeset of a STEM card with what failed. */
     onmath?: (errors: MathError[]) => void;
   } = $props();
@@ -73,8 +76,8 @@
 
   // Send the card once the frame is ready, and again on every change.
   $effect(() => {
-    const night = theme.dark ? " nightMode night_mode" : "";
-    const content = { html: back ? card.back : card.front, cls: `card card${index + 1}${night}` };
+    const mode = (night ?? theme.dark) ? " nightMode night_mode" : "";
+    const content = { html: back ? card.back : card.front, cls: `card card${index + 1}${mode}` };
     if (readyDoc !== frameDoc.id) return;
     frame?.contentWindow?.postMessage({ ankinotePreview: content }, "*");
   });

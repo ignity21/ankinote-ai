@@ -85,3 +85,34 @@ async def test_preserves_existing_notes_and_extra_field_across_sync(
         assert revlog_count == 1
     finally:
         await runtime.close()
+
+
+async def test_restyling_a_note_type_does_not_force_a_full_sync(
+    tmp_path: Path,
+) -> None:
+    """A card theme change edits CSS only, which AnkiWeb syncs normally.
+
+    Anki asks for a one-way full sync when the schema modification time
+    moves; a CSS edit must leave it where it was.
+    """
+    runtime = CollectionRuntime(str(tmp_path / "collection.anki2"))
+    await runtime.open()
+    try:
+        client = DirectCollectionClient(runtime)
+        await client.models.create(
+            "T",
+            ["Front", "Back"],
+            [{"Name": "Card 1", "Front": "{{Front}}", "Back": "{{Back}}"}],
+            css=".card { color: red; }",
+        )
+
+        def _schema(col: Any) -> int:
+            return col.db.scalar("select scm from col")
+
+        before = await runtime.submit(_schema)
+        await client.models.update_styling("T", ".card { color: blue; }")
+        model = await client.models.get("T")
+        assert model is not None and model.css == ".card { color: blue; }"
+        assert await runtime.submit(_schema) == before
+    finally:
+        await runtime.close()

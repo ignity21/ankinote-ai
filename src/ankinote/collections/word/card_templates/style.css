@@ -2,44 +2,12 @@
   font-size: clamp(16px, 2.7vw, 21px);
 }
 
-body {
-  --bg: #f5efe4;
-  --paper: #fffaf1;
-  --paper-strong: #f1e4c8;
-  --ink: #1e2430;
-  --muted: #6b7280;
-  --accent: #b45309;
-  --accent-soft: #f59e0b;
-  --accent-deep: #7c2d12;
-  --border: rgba(124, 45, 18, 0.12);
-  --shadow: 0 10px 30px rgba(30, 36, 48, 0.08);
-  --success: #1d8348;
-  --error: #b42318;
-}
-
-body.nightMode {
-  --bg: #1f2229;
-  --paper: #2a2f39;
-  --paper-strong: #383d47;
-  --ink: #f6f0e5;
-  --muted: #c7c2b7;
-  --accent: #f2b84b;
-  --accent-soft: #f8d57e;
-  --accent-deep: #f6e0af;
-  --border: rgba(248, 213, 126, 0.14);
-  --shadow: 0 12px 36px rgba(0, 0, 0, 0.28);
-  --success: #7dd3a4;
-  --error: #fca5a5;
-}
-
 .card {
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--an-sans);
   font-size: 1rem;
   text-align: left;
-  background:
-    radial-gradient(circle at top left, rgba(245, 158, 11, 0.12), transparent 35%),
-    linear-gradient(180deg, var(--bg), color-mix(in srgb, var(--bg) 82%, black 18%));
-  color: var(--ink);
+  background: var(--an-outer);
+  color: var(--an-fg);
   min-height: 100vh;
   margin: 0 auto;
   padding: 1rem 0.85rem 1.6rem;
@@ -48,10 +16,9 @@ body.nightMode {
 
 .stage-card,
 .panel {
-  background: var(--paper);
-  border: 1px solid var(--border);
-  border-radius: 1.25rem;
-  box-shadow: var(--shadow);
+  background: var(--an-tile);
+  border: 1px solid var(--an-border);
+  border-radius: 10px;
 }
 
 .stage-card {
@@ -68,18 +35,16 @@ body.nightMode {
 }
 
 .eyebrow {
-  font-size: 0.7rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--accent);
+  font-size: 0.82rem;
+  color: var(--an-accent);
   margin-bottom: 0.9rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .lemma-stage {
   font-size: clamp(2rem, 7vw, 3.2rem);
   line-height: 1.05;
-  font-weight: 700;
+  font-weight: 600;
   text-align: center;
   margin-bottom: 0.8rem;
 }
@@ -95,19 +60,19 @@ body.nightMode {
 .pill {
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
+  border-radius: 6px;
   padding: 0.25rem 0.7rem;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .pos-pill {
-  background: rgba(30, 36, 48, 0.08);
+  background: color-mix(in srgb, var(--an-fg) 8%, transparent);
 }
 
 .difficulty-pill {
-  background: rgba(180, 83, 9, 0.12);
-  color: var(--accent-deep);
+  background: color-mix(in srgb, var(--an-accent2) 14%, transparent);
+  color: var(--an-accent2);
 }
 
 .plain-text,
@@ -125,7 +90,7 @@ body.nightMode {
 }
 
 .pronunciation-line {
-  color: var(--muted);
+  color: var(--an-muted);
 }
 
 .audio-line {
@@ -162,7 +127,7 @@ body.nightMode {
 
 .language-hint {
   font-size: 0.92rem;
-  color: var(--muted);
+  color: var(--an-muted);
   margin-top: 0.6rem;
 }
 
@@ -172,14 +137,10 @@ body.nightMode {
   justify-content: center;
   gap: 0.4rem;
   margin-top: 0.9rem;
-  color: var(--muted);
+  color: var(--an-muted);
   font-size: 0.82rem;
 }
 
-.audio-hint-label {
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
 
 .meaning-row {
   display: grid;
@@ -193,7 +154,7 @@ body.nightMode {
 
 .meaning-native {
   font-size: 0.98rem;
-  color: var(--muted);
+  color: var(--an-muted);
 }
 
 /* Recall/Spelling ask for the target-language word, so the prompt must not
@@ -204,12 +165,10 @@ body.nightMode {
 }
 
 .section-title {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: var(--accent);
+  font-size: 0.85rem;
+  color: var(--an-accent);
   margin: 0.95rem 0 0.45rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .section-title:first-child {
@@ -219,8 +178,8 @@ body.nightMode {
 .example-block {
   padding: 0.85rem 0.9rem;
   margin-bottom: 0.8rem;
-  border-radius: 1rem;
-  background: rgba(30, 36, 48, 0.04);
+  border-radius: 8px;
+  background: var(--an-outer);
 }
 
 .example-block:last-child {
@@ -232,8 +191,8 @@ body.nightMode {
 }
 
 .example-highlight {
-  color: var(--accent-deep);
-  font-weight: 700;
+  color: var(--an-accent2);
+  font-weight: 600;
 }
 
 .example-audio {
@@ -245,7 +204,7 @@ body.nightMode {
 }
 
 .example-translation {
-  color: var(--muted);
+  color: var(--an-muted);
   font-size: 0.92rem;
 }
 
@@ -264,8 +223,8 @@ body.nightMode {
 .collocation-chip {
   display: inline-block;
   padding: 0.35rem 0.65rem;
-  border-radius: 999px;
-  background: var(--paper-strong);
+  border-radius: 6px;
+  background: var(--an-sel);
   font-size: 0.88rem;
   line-height: 1.7;
   vertical-align: baseline;
@@ -300,7 +259,7 @@ rt {
   width: auto;
   max-width: min(100%, 18rem);
   max-height: 14rem;
-  border-radius: 1rem;
+  border-radius: 8px;
   object-fit: contain;
   background: transparent;
 }
@@ -316,26 +275,26 @@ rt {
   box-sizing: border-box;
   font-size: 1.6rem;
   padding: 0.55rem 0.7rem;
-  border-radius: 0.9rem;
-  border: 1px solid var(--border);
-  background: var(--paper-strong);
-  color: var(--ink);
+  border-radius: 8px;
+  border: 1px solid var(--an-border);
+  background: var(--an-sel);
+  color: var(--an-fg);
   text-align: center;
 }
 
 .typeGood {
-  background: color-mix(in srgb, var(--success) 22%, white) !important;
-  color: var(--success) !important;
+  background: color-mix(in srgb, var(--an-ok) 22%, var(--an-tile)) !important;
+  color: var(--an-ok) !important;
 }
 
 .typeBad {
-  background: color-mix(in srgb, var(--error) 20%, white) !important;
-  color: var(--error) !important;
+  background: color-mix(in srgb, var(--an-err) 20%, var(--an-tile)) !important;
+  color: var(--an-err) !important;
 }
 
 .typeMissed {
-  background: var(--paper-strong) !important;
-  color: var(--ink) !important;
+  background: var(--an-sel) !important;
+  color: var(--an-fg) !important;
 }
 
 .replay-button svg,

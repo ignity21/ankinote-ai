@@ -227,6 +227,14 @@ changes do).
 Done when: switching theme in the UI restyles existing cards on all clients
 after a normal sync, with light and dark chosen separately.
 
+Built 2026-11-13 on `feat/1.0`. Decided with the project owner the same
+day: the four app palettes only (Kanagawa default); the 0.x "paper" look
+is dropped rather than kept as a fifth theme. Items 1–4 are done
+(`card_theme.py`, `Settings.card_theme_light/dark`, `PUT /api/card-theme`,
+the "Card theme" entry on the Note types page); the full-sync question is
+answered (CSS edits leave the schema time alone, so a normal sync carries
+them). Not yet checked on a real AnkiWeb account, AnkiDroid or AnkiMobile.
+
 ## Phase 4 — Showcase and launch (S–M)
 
 Last, so screenshots and the sample deck show the final themes and languages.

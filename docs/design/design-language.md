@@ -208,8 +208,21 @@ sample card: a made-up English note for a Chinese speaker run through the
 real parsing and field formatting (`web/samples.py`), shown in the same
 preview frame as Generate, so it shows what the note type looks like even
 while Anki isn't connected. Fields and card templates are listed beside it,
-the ones an update would add outlined. Phase 3's card theme picker belongs
-on this page.
+the ones an update would add outlined.
+
+Card theme, built 2026-11-13: the first entry of the list ("Card theme",
+with the palettes in use), at `/notetypes/theme`. Two rows of the four
+palettes, "Light cards" and "Dark cards (night mode)", chosen
+independently; each tile is a miniature card in that palette's colours.
+Picking one previews it at once in a sample card (Word / Phrase /
+Sentence / STEM, light or dark; the preview switches to the mode just
+picked) without saving anything. "Apply to cards" saves the theme and
+restyles every ankinote note type Anki already has, CSS only: it never
+creates a type or adds fields or card templates. If Anki can't be reached
+the theme is still saved, the page says so, and each type shows "Updates
+the styling" until it's updated. "Use the app's palette" sets both rows to
+the app's current palette. On wide screens the choices sit left of the
+preview; below 1000px the preview follows them.
 
 ## First-run wizard
 
@@ -285,17 +298,27 @@ step; the flow above supersedes it.
 
 ## Cards
 
-- The card CSS is generated from the same palette tokens: light values on
-  `.card`, dark values under `.nightMode .card, .night_mode .card` so Anki's
-  own night mode switches them on every client.
-- Card fonts ship as collection media (`_IBMPlexSans-*.woff2`; the leading
-  underscore keeps Anki's "check media" from deleting them) so AnkiDroid and
-  AnkiMobile render the same type offline.
+- The card CSS is generated from the same palette tokens (`card_theme.py`):
+  each note type's `style.css` uses only `--an-<role>` variables (and
+  `--an-sans`), and the theme's values go in front of it: light on `.card`,
+  dark under `.card.nightMode`, `.card.night_mode`, `.nightMode .card` and
+  `.night_mode .card`, so Anki's own night mode switches them on every
+  client. A test keeps hex colours, `rgba()` and font stacks out of
+  `style.css`.
+- Card fonts ship as collection media (`_ankinote-ibm-plex-sans-*.woff2`,
+  Latin and Latin Extended at 400 and 600; the leading underscore keeps
+  Anki's "check media" from deleting them) so AnkiDroid and AnkiMobile
+  render the same type offline. They're stored whenever a note type is set
+  up or restyled. The preview loads them from `/api/card-theme/fonts/`.
+- Cards follow the UI's shape and type rules: Plex Sans, panels with a 1px
+  border and 10px radius on the `--outer` background, no shadows or
+  gradients, sentence-case section titles, chips at 6px.
 - Note fields and card templates stay as they are; any field change is
   proposed to the project owner before it is made. Field HTML has
   class names baked in at generation time, so the new CSS must style every
   class selector the current `card_templates/*/style.css` files style.
 - Restyling updates every existing card of that note type at once. Mark the
   CSS with `/* ankinote-style: 1.0 */` instead of bumping note-type names.
-- To verify before shipping: a CSS-only note-type update does not force a
-  full AnkiWeb sync.
+- A CSS-only note-type update does not force a full AnkiWeb sync: it leaves
+  the collection's schema time unchanged (checked 2026-11-13,
+  `test_restyling_a_note_type_does_not_force_a_full_sync`).

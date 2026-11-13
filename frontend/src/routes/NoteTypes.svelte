@@ -1,5 +1,6 @@
 <script lang="ts">
   import CardPreview from "../components/CardPreview.svelte";
+  import CardThemePicker from "../components/CardThemePicker.svelte";
   import Pane from "../components/Pane.svelte";
   import type { NoteTypeInfo, NoteTypeItem } from "../lib/api";
   import { t, type MessageKey } from "../lib/i18n.svelte";
@@ -7,15 +8,31 @@
   import { noteTypes, type Failure } from "../lib/noteTypes.svelte";
   import { link, router } from "../lib/router.svelte";
   import { sectionFor } from "../lib/settings";
+  import { cardTheme } from "../lib/cardTheme.svelte";
+  import { palettes } from "../lib/theme.svelte";
 
   // Anki's state is read again on every visit: it may have changed in Anki.
   void noteTypes.load();
+  // Each visit starts from the saved card theme; untried picks are dropped.
+  void cardTheme.load();
+
+  /** The list entry above the note types that opens the card theme. */
+  const THEME = "theme";
 
   let list = $state<HTMLUListElement>();
 
   const types = $derived(noteTypes.types ?? []);
   const wanted = $derived(router.path.replace(/^\/notetypes\/?/, "").split("/")[0] ?? "");
-  const info = $derived(types.find((n) => n.key === wanted) ?? types[0]);
+  const showTheme = $derived(wanted === THEME);
+  const info = $derived(showTheme ? undefined : (types.find((n) => n.key === wanted) ?? types[0]));
+  const themeLabel = $derived.by(() => {
+    const saved = cardTheme.saved;
+    if (!saved) return "";
+    const name = (id: string) => palettes.find((p) => p.id === id)?.name ?? id;
+    return saved.light === saved.dark
+      ? name(saved.light)
+      : t("cardtheme.both", { light: name(saved.light), dark: name(saved.dark) });
+  });
   const status = $derived(info && noteTypes.status ? noteTypes.status[info.key] : undefined);
   const sample = $derived(info ? noteTypes.samples[info.key] : undefined);
   const result = $derived(info ? noteTypes.results[info.key] : undefined);
@@ -84,15 +101,16 @@
   }
 
   function onKey(event: KeyboardEvent) {
-    if (event.ctrlKey || event.metaKey || event.altKey || !info || !types.length) return;
+    if (event.ctrlKey || event.metaKey || event.altKey || !types.length) return;
     const target = event.target as HTMLElement;
     if (target.closest("input, textarea, select, [contenteditable]")) return;
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     event.preventDefault();
-    const i = types.indexOf(info) + (event.key === "ArrowDown" ? 1 : -1);
-    const next = types[Math.max(0, Math.min(types.length - 1, i))]!;
-    select(next.key);
-    list?.querySelector<HTMLElement>(`[data-key="${next.key}"]`)?.focus();
+    const keys = [THEME, ...types.map((type) => type.key)];
+    const i = keys.indexOf(info?.key ?? THEME) + (event.key === "ArrowDown" ? 1 : -1);
+    const next = keys[Math.max(0, Math.min(keys.length - 1, i))]!;
+    select(next);
+    list?.querySelector<HTMLElement>(`[data-key="${next}"]`)?.focus();
   }
 </script>
 
@@ -113,6 +131,21 @@
       <p class="error" role="alert">{t("notetypes.err.load")}</p>
     {:else}
       <ul class="types" bind:this={list} aria-label={t("nav.notetypes")}>
+        <li>
+          <a
+            href="/notetypes/{THEME}"
+            onclick={link}
+            data-key={THEME}
+            class="type theme"
+            class:on={showTheme}
+            aria-current={showTheme ? "page" : undefined}
+          >
+            <span class="glyph new" aria-hidden="true">◐</span>
+            <span class="tname">{t("cardtheme.title")}</span>
+            <span class="tstate muted">{themeLabel}</span>
+          </a>
+        </li>
+        <li class="divider" aria-hidden="true"></li>
         {#each types as type, i (type.key)}
           {@const m = mark(noteTypes.status?.[type.key])}
           {#if type.stem_type && !types[i - 1]?.stem_type}
@@ -173,9 +206,11 @@
     {/if}
   </Pane>
 
-  <Pane title={info ? fullName(info) : t("nav.notetypes")} area="detail">
+  <Pane title={showTheme ? t("cardtheme.title") : info ? fullName(info) : t("nav.notetypes")} area="detail">
     <div class="body">
-      {#if info}
+      {#if showTheme}
+        <CardThemePicker />
+      {:else if info}
         <p class="ident mono">
           <span title={t("notetypes.ankiName")}>{info.name}</span>
           <span class="sep" aria-hidden="true">·</span>
@@ -322,6 +357,25 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+  }
+
+  /* "Card theme" stays whole; the palette names give way. */
+  @container app (min-width: 1001px) {
+    .type.theme {
+      grid-template-columns: 18px auto minmax(0, 1fr);
+    }
+
+    .type.theme .tstate {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: right;
+    }
+  }
+
+  .divider {
+    margin: 6px 8px;
+    border-top: 1px solid var(--border);
   }
 
   .group {
@@ -545,7 +599,8 @@
       padding: 0 0 2px;
     }
 
-    .group {
+    .group,
+    .divider {
       display: none;
     }
 

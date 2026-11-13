@@ -8,10 +8,11 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from ankinote.card_theme import CardTheme, current_theme
 from ankinote.collections.stem.models import CardType
 from ankinote.note_types import NoteTypeSpec, build_specs
 from ankinote.web import samples
-from ankinote.web.cards_api import Kind, sample_note
+from ankinote.web.cards_api import Kind, card_css, sample_note
 
 router = APIRouter(prefix="/api/note-types")
 
@@ -72,10 +73,18 @@ def _sample_answer(kind: Kind, card_type: CardType | None) -> tuple[str, Any]:
 
 
 @router.get("/{key}/sample")
-async def sample(key: str) -> dict:
-    """A sample note of this type, rendered like a draft (cards, CSS)."""
+async def sample(key: str, light: str | None = None, dark: str | None = None) -> dict:
+    """A sample note of this type, rendered like a draft (cards, CSS).
+
+    ``light`` and ``dark`` preview a card theme other than the saved one.
+    """
+    kind, card_type = _kind(_spec(key))
     if key not in _samples:
-        kind, card_type = _kind(_spec(key))
         source, answer = _sample_answer(kind, card_type)
         _samples[key] = await sample_note(kind, source, answer, card_type)
-    return _samples[key]
+    saved = current_theme()
+    try:
+        theme = CardTheme(light or saved.light, dark or saved.dark)
+    except ValueError as exc:
+        raise HTTPException(422, detail={"code": "unknown_palette"}) from exc
+    return {**_samples[key], "css": card_css(kind, theme)}

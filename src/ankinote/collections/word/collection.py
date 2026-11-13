@@ -12,6 +12,7 @@ from loguru import logger
 from ankinote.collections.common import (
     convert_to_html_ruby,
     respeak,
+    store_card_fonts,
     strip_phonetic_annotations,
 )
 from ankinote.consts import RUBY_ANNOTATION_LANGUAGES, Language
@@ -136,6 +137,7 @@ class WordCollection:
     async def _ensure_note_type_exists(self) -> None:
         fields = [field.name for field in dataclasses.fields(WordNoteType)]
         css = load_card_style()
+        await store_card_fonts(self._anki)
         templates = self.card_templates()
         exists = await self._anki.models.exists(self.notetype_name)
         if not exists:

@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+from ankinote.card_theme import default_palette, palette_ids
 from ankinote.config import envs
 from ankinote.model_presets import (
     CUSTOM_VENDOR,
@@ -481,6 +482,10 @@ class Settings:
     ui_language: str = "en"
     anki_backend: str = ""
     anki_collection_path: str = ""
+    # Palettes (``themes/palettes.json``) the cards use in Anki's day and
+    # night modes; see ``card_theme``.
+    card_theme_light: str = field(default_factory=default_palette)
+    card_theme_dark: str = field(default_factory=default_palette)
 
 
 def _get_config_dir() -> Path:
@@ -594,6 +599,17 @@ def _settings_from_current_shape(data: dict) -> Settings:
         anki_backend=data.get("anki_backend") or envs.ANKI_BACKEND,
         anki_collection_path=data.get("anki_collection_path")
         or envs.ANKI_COLLECTION_PATH,
+        card_theme_light=_palette(data.get("card_theme_light")),
+        card_theme_dark=_palette(data.get("card_theme_dark")),
+    )
+
+
+def _palette(value: object) -> str:
+    """A saved card palette, or the default when it's unknown (or absent)."""
+    return (
+        value
+        if isinstance(value, str) and value in palette_ids()
+        else default_palette()
     )
 
 
@@ -805,6 +821,8 @@ def save_settings(settings: Settings) -> None:
         "ui_language": settings.ui_language,
         "anki_backend": settings.anki_backend,
         "anki_collection_path": settings.anki_collection_path,
+        "card_theme_light": settings.card_theme_light,
+        "card_theme_dark": settings.card_theme_dark,
     }
     path = _get_config_path()
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")

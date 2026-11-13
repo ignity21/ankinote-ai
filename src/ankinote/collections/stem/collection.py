@@ -7,7 +7,7 @@ from typing import Self
 
 from loguru import logger
 
-from ankinote.collections.common import MediaGap
+from ankinote.collections.common import MediaGap, store_card_fonts
 from ankinote.services.ai import ImageGenerationService, TextGenerationService
 from ankinote.services.anki import AnkiCollectionClient, TemplateUpsert
 from ankinote.services.anki_batch import anki_write_batch
@@ -153,6 +153,7 @@ class StemCollection:
         front_template = load_template(f"{card_type}/front.html")
         back_template = load_template(f"{card_type}/back.html")
         style = load_card_style()
+        await store_card_fonts(self._anki)
         exists = await self._anki.models.exists(notetype_name)
         if not exists:
             await self._anki.models.create(

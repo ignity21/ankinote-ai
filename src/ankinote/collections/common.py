@@ -10,7 +10,10 @@ from typing import Literal, TypeVar, cast
 from loguru import logger
 from pydantic import BaseModel
 
+from ankinote import card_theme
+from ankinote.card_theme import CardTheme
 from ankinote.consts import RUBY_ANNOTATION_LANGUAGES, Language
+from ankinote.services.anki import AnkiCollectionClient
 from ankinote.services.tts import SpeechSynthesizer
 
 
@@ -27,21 +30,29 @@ class MediaGap:
     detail: str = ""
 
 
-def load_card_style(package: str) -> str:
-    """Load the CSS styling for card templates.
+def load_card_style(package: str, theme: CardTheme | None = None) -> str:
+    """The note type's full CSS: the card theme, then its own rules.
 
     Args:
         package: The full package path containing card_templates
             (e.g., "ankinote.collections.word").
+        theme: The palettes to use; the one saved in settings when omitted.
 
     Returns:
         The CSS content as a string.
     """
-    return (
+    rules = (
         files(f"{package}.card_templates")
         .joinpath("style.css")
         .read_text(encoding="utf-8")
     )
+    return card_theme.compose(rules, theme or card_theme.current_theme())
+
+
+async def store_card_fonts(anki: AnkiCollectionClient) -> None:
+    """Put the card fonts into the collection's media (same name, same data)."""
+    for name, data in card_theme.font_files().items():
+        await anki.media.store_file(name, data)
 
 
 def load_template(package: str, filename: str) -> str:
@@ -99,7 +110,7 @@ T = TypeVar("T", bound=BaseModel)
 def create_template_loader(
     package: str,
 ) -> tuple[
-    Callable[[], str],
+    Callable[..., str],
     Callable[[str], str],
 ]:
     """Create template loader functions for a specific package.
@@ -111,8 +122,8 @@ def create_template_loader(
         A tuple of (load_card_style, load_template) functions bound to the package.
     """
 
-    def _load_card_style() -> str:
-        return load_card_style(package)
+    def _load_card_style(theme: CardTheme | None = None) -> str:
+        return load_card_style(package, theme)
 
     def _load_template(filename: str) -> str:
         return load_template(package, filename)

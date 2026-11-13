@@ -15,7 +15,13 @@ from fastapi.staticfiles import StaticFiles
 from ankinote import __version__
 from ankinote.services.anki_factory import stop_anki_backend
 from ankinote.utils.httpcli import close_session, init_session
-from ankinote.web import anki_api, cards_api, note_types_api, settings_api
+from ankinote.web import (
+    anki_api,
+    card_theme_api,
+    cards_api,
+    note_types_api,
+    settings_api,
+)
 
 DIST_DIR = Path(__file__).parent / "dist"
 
@@ -65,6 +71,7 @@ def create_app(dist_dir: Path = DIST_DIR) -> FastAPI:
     app.include_router(anki_api.router)
     app.include_router(cards_api.router)
     app.include_router(note_types_api.router)
+    app.include_router(card_theme_api.router)
     app.include_router(_api())
 
     index = dist_dir / "index.html"

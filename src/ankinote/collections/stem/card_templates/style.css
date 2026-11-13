@@ -2,74 +2,32 @@
   font-size: clamp(16px, 2.7vw, 21px);
 }
 
-body {
-  --bg: #f5efe4;
-  --paper: #fffaf1;
-  --paper-strong: #f1e4c8;
-  --ink: #1e2430;
-  --muted: #6b7280;
-  --accent: #b45309;
-  --accent-soft: #f59e0b;
-  --accent-deep: #7c2d12;
-  --border: rgba(124, 45, 18, 0.12);
-  --shadow: 0 10px 30px rgba(30, 36, 48, 0.08);
-  --success: #1d8348;
-  --error: #b42318;
-
-  --badge-concept-bg: rgba(30, 36, 48, 0.08);
-  --badge-concept-color: var(--ink);
-  --badge-formula-bg: rgba(180, 83, 9, 0.12);
-  --badge-formula-color: var(--accent-deep);
-  --badge-procedure-bg: rgba(29, 131, 72, 0.12);
-  --badge-procedure-color: var(--success);
-  --badge-example-bg: rgba(29, 78, 216, 0.12);
-  --badge-example-color: #1d4ed8;
-}
-
-body.nightMode {
-  --bg: #1f2229;
-  --paper: #2a2f39;
-  --paper-strong: #383d47;
-  --ink: #f6f0e5;
-  --muted: #c7c2b7;
-  --accent: #f2b84b;
-  --accent-soft: #f8d57e;
-  --accent-deep: #f6e0af;
-  --border: rgba(248, 213, 126, 0.14);
-  --shadow: 0 12px 36px rgba(0, 0, 0, 0.28);
-  --success: #7dd3a4;
-  --error: #fca5a5;
-
-  --badge-concept-bg: rgba(30, 36, 48, 0.25);
-  --badge-concept-color: var(--ink);
-  --badge-formula-bg: rgba(180, 83, 9, 0.25);
-  --badge-formula-color: var(--accent-soft);
-  --badge-procedure-bg: rgba(29, 131, 72, 0.25);
-  --badge-procedure-color: var(--success);
-  --badge-example-bg: rgba(96, 165, 250, 0.25);
-  --badge-example-color: #93c5fd;
-}
-
 .card {
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--an-sans);
   font-size: 1rem;
   text-align: left;
-  background:
-    radial-gradient(circle at top left, rgba(245, 158, 11, 0.12), transparent 35%),
-    linear-gradient(180deg, var(--bg), color-mix(in srgb, var(--bg) 82%, black 18%));
-  color: var(--ink);
+  background: var(--an-outer);
+  color: var(--an-fg);
   min-height: 100vh;
   margin: 0 auto;
   padding: 1rem 0.85rem 1.6rem;
   max-width: 42rem;
+
+  --badge-concept-bg: color-mix(in srgb, var(--an-fg) 10%, transparent);
+  --badge-concept-color: var(--an-fg);
+  --badge-formula-bg: color-mix(in srgb, var(--an-accent2) 14%, transparent);
+  --badge-formula-color: var(--an-accent2);
+  --badge-procedure-bg: color-mix(in srgb, var(--an-ok) 14%, transparent);
+  --badge-procedure-color: var(--an-ok);
+  --badge-example-bg: color-mix(in srgb, var(--an-accent) 14%, transparent);
+  --badge-example-color: var(--an-accent);
 }
 
 .stage-card,
 .panel {
-  background: var(--paper);
-  border: 1px solid var(--border);
-  border-radius: 1.25rem;
-  box-shadow: var(--shadow);
+  background: var(--an-tile);
+  border: 1px solid var(--an-border);
+  border-radius: 10px;
 }
 
 .stage-card {
@@ -82,18 +40,16 @@ body.nightMode {
 }
 
 .eyebrow {
-  font-size: 0.7rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--accent);
+  font-size: 0.82rem;
+  color: var(--an-accent);
   margin-bottom: 0.9rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .stem-front {
   font-size: clamp(1.1rem, 3.5vw, 1.6rem);
   line-height: 1.2;
-  font-weight: 700;
+  font-weight: 600;
   text-align: left;
   margin-bottom: 0.8rem;
 }
@@ -108,10 +64,10 @@ body.nightMode {
 .badge {
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
+  border-radius: 6px;
   padding: 0.25rem 0.7rem;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: capitalize;
 }
 
@@ -121,12 +77,10 @@ body.nightMode {
 .badge-example  { background: var(--badge-example-bg);   color: var(--badge-example-color); }
 
 .section-title {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: var(--accent);
+  font-size: 0.85rem;
+  color: var(--an-accent);
   margin: 0.95rem 0 0.45rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .section-title:first-child {
@@ -143,7 +97,7 @@ body.nightMode {
 .detail {
   font-size: 1rem;
   line-height: 1.6;
-  color: var(--ink);
+  color: var(--an-fg);
 }
 
 .detail p {
@@ -157,12 +111,12 @@ body.nightMode {
   align-items: center;
   font-size: 0.82rem;
   line-height: 1.5;
-  color: var(--muted);
+  color: var(--an-muted);
 }
 
 hr {
   border: none;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--an-border);
   margin: 1.5rem 0;
 }
 
@@ -174,9 +128,9 @@ hr {
 
 /* Structured formula rendering */
 .formula-block {
-  background: var(--paper-strong);
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  background: var(--an-sel);
+  border: 1px solid var(--an-border);
+  border-radius: 8px;
   padding: 0.85rem 1rem;
   margin: 0 0 0.95rem;
   text-align: center;
@@ -193,7 +147,7 @@ hr {
 
 .symbol-table td {
   padding: 0.45rem 0.6rem;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--an-border);
   vertical-align: top;
 }
 
@@ -203,7 +157,7 @@ hr {
 
 .symbol-table .symbol-cell {
   width: 5.5em;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -219,8 +173,8 @@ hr {
 }
 
 .step-list li::marker {
-  color: var(--accent);
-  font-weight: 700;
+  color: var(--an-accent);
+  font-weight: 600;
 }
 
 /* Diagram */
@@ -232,7 +186,6 @@ hr {
 .diagram {
   max-width: 100%;
   height: auto;
-  border-radius: 1rem;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
+  border-radius: 8px;
+  border: 1px solid var(--an-border);
 }

@@ -7,7 +7,7 @@ from typing import Self
 
 from loguru import logger
 
-from ankinote.collections.common import convert_to_html_ruby
+from ankinote.collections.common import convert_to_html_ruby, store_card_fonts
 from ankinote.consts import RUBY_ANNOTATION_LANGUAGES, Language
 from ankinote.services.ai import DISABLE_REASONING, TextGenerationService
 from ankinote.services.anki import AnkiCollectionClient, TemplateUpsert
@@ -115,6 +115,7 @@ class SentenceCollection:
         """Ensure the note type exists in Anki, create or update it."""
         fields = [f.name for f in dataclasses.fields(SentenceNoteType)]
         css = load_card_style()
+        await store_card_fonts(self._anki)
         templates = self.card_templates()
         exists = await self._anki.models.exists(self.notetype_name)
         if not exists:

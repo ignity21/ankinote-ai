@@ -10,6 +10,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Literal
 
+from ankinote.card_theme import CardTheme, current_theme
+from ankinote.collections.common import store_card_fonts
 from ankinote.collections.phrase import PhraseCollection
 from ankinote.collections.phrase.models import PhraseNoteType
 from ankinote.collections.phrase.templates import load_card_style as _phrase_style
@@ -71,8 +73,12 @@ def _field_names(note_type) -> tuple[str, ...]:
     return tuple(field.name for field in note_type.__dataclass_fields__.values())
 
 
-def build_specs() -> list[NoteTypeSpec]:
-    """The fixed set of note types managed by ankinote, in display order."""
+def build_specs(theme: CardTheme | None = None) -> list[NoteTypeSpec]:
+    """The fixed set of note types managed by ankinote, in display order.
+
+    Their styling uses ``theme``, or the card theme saved in settings.
+    """
+    theme = theme or current_theme()
 
     def sync_word(notetype_name: str, deck_name: str):
         async def _sync(client: AnkiCollectionClient) -> None:
@@ -124,7 +130,7 @@ def build_specs() -> list[NoteTypeSpec]:
             deck_name="AINote::Words",
             fields=_field_names(WordNoteType),
             templates=("Recognition", "Recall", "Spelling"),
-            css=_word_style(),
+            css=_word_style(theme),
             sync=sync_word("AINote Word V2", "AINote::Words"),
         ),
         NoteTypeSpec(
@@ -133,7 +139,7 @@ def build_specs() -> list[NoteTypeSpec]:
             deck_name="AINote::Phrases",
             fields=_field_names(PhraseNoteType),
             templates=("Recognition", "Recall"),
-            css=_phrase_style(),
+            css=_phrase_style(theme),
             sync=sync_language(PhraseCollection, "AINote Phrase V2", "AINote::Phrases"),
         ),
         NoteTypeSpec(
@@ -142,7 +148,7 @@ def build_specs() -> list[NoteTypeSpec]:
             deck_name="AINote::Sentences",
             fields=_field_names(SentenceNoteType),
             templates=("Production",),
-            css=_sentence_style(),
+            css=_sentence_style(theme),
             sync=sync_language(
                 SentenceCollection, "AINote Sentence V2", "AINote::Sentences"
             ),
@@ -154,7 +160,7 @@ def build_specs() -> list[NoteTypeSpec]:
                 deck_name="AINote::STEM",
                 fields=NOTE_FIELDS[kind],
                 templates=("Card 1",),
-                css=_stem_style(),
+                css=_stem_style(theme),
                 sync=sync_stem(kind),
             )
             for kind in CardType
@@ -186,3 +192,18 @@ async def load_status(client: AnkiCollectionClient, spec: NoteTypeSpec) -> TypeS
         missing_templates=[t for t in spec.templates if t not in existing_templates],
         css_differs=model.css != spec.css,
     )
+
+
+async def restyle(client: AnkiCollectionClient, specs: list[NoteTypeSpec]) -> list[str]:
+    """Give the note types that exist their spec's styling, and nothing else.
+
+    Unlike setting a type up, this never adds fields or card templates (new
+    templates would create cards), and types that don't exist stay absent.
+    Returns the keys of the types restyled.
+    """
+    existing = [s for s in specs if await client.models.exists(s.notetype_name)]
+    if existing:
+        await store_card_fonts(client)
+    for spec in existing:
+        await client.models.update_styling(spec.notetype_name, spec.css)
+    return [spec.key for spec in existing]

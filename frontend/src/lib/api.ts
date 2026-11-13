@@ -114,6 +114,16 @@ export type NoteTypeItem = {
 };
 
 /** One of ankinote's note types as this release defines it; no Anki needed. */
+/** The palettes cards use in Anki's day and night modes. */
+export type CardTheme = { light: string; dark: string };
+
+export type CardThemeSaved = CardTheme & {
+  /** Keys of the note types restyled in Anki. */
+  restyled: string[];
+  /** Why Anki couldn't be restyled; the theme is saved either way. */
+  anki: { code: string; detail: string } | null;
+};
+
 export type NoteTypeInfo = {
   key: string;
   kind: Kind;
@@ -248,8 +258,15 @@ export const api = {
   prepareNoteTypes: () => request<NoteTypeItem[]>("POST", "/api/anki/note-types"),
   prepareNoteType: (key: string) => request<NoteTypeItem>("POST", `/api/anki/note-types/${key}`),
   noteTypeInfo: () => request<NoteTypeInfo[]>("GET", "/api/note-types"),
-  /** A made-up note of this type, rendered like a draft. */
-  noteTypeSample: (key: string) => request<DraftNote>("GET", `/api/note-types/${key}/sample`),
+  /** A made-up note of this type, rendered like a draft; `theme` previews another card theme. */
+  noteTypeSample: (key: string, theme?: CardTheme) =>
+    request<DraftNote>(
+      "GET",
+      `/api/note-types/${key}/sample${theme ? `?${new URLSearchParams(theme)}` : ""}`,
+    ),
+  cardTheme: () => request<CardTheme & { palettes: string[] }>("GET", "/api/card-theme"),
+  /** Saves the theme and restyles the note types Anki has. */
+  saveCardTheme: (theme: CardTheme) => request<CardThemeSaved>("PUT", "/api/card-theme", theme),
   generate: (
     kind: Kind,
     text: string,

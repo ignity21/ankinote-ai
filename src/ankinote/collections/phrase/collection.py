@@ -11,6 +11,7 @@ from loguru import logger
 from ankinote.collections.common import (
     convert_to_html_ruby,
     respeak,
+    store_card_fonts,
     strip_phonetic_annotations,
 )
 from ankinote.consts import RUBY_ANNOTATION_LANGUAGES, Language
@@ -126,6 +127,7 @@ class PhraseCollection:
         """Ensure the note type exists in Anki, create or update it."""
         fields = [field.name for field in dataclasses.fields(PhraseNoteType)]
         css = load_card_style()
+        await store_card_fonts(self._anki)
         templates = self.card_templates()
         exists = await self._anki.models.exists(self.notetype_name)
         if not exists:

@@ -28,6 +28,7 @@ from loguru import logger
 from pydantic import BaseModel, Field, ValidationError
 
 from ankinote.card_render import media_path, render_card
+from ankinote.card_theme import CardTheme, preview_css
 from ankinote.collections.common import (
     AudioUnavailable,
     MediaGap,
@@ -104,12 +105,21 @@ class CardCollection(Protocol):
     async def ensure_in_anki(self) -> None: ...
 
 
-_STYLES: dict[Kind, Callable[[], str]] = {
+_STYLES: dict[Kind, Callable[..., str]] = {
     "word": word_templates.load_card_style,
     "phrase": phrase_templates.load_card_style,
     "sentence": sentence_templates.load_card_style,
     "stem": stem_templates.load_card_style,
 }
+
+# Where the preview loads the card fonts from (``card_theme_api``).
+FONT_URL = "/api/card-theme/fonts"
+
+
+def card_css(kind: Kind, theme: CardTheme | None = None) -> str:
+    """A note type's CSS for the preview frame: ``theme``, or the saved one."""
+    return preview_css(_STYLES[kind](theme), FONT_URL)
+
 
 _FORMS: dict[Kind, Form] = {
     "word": word_models.EDIT_FORM,
@@ -293,7 +303,7 @@ def _draft_out(draft: Draft, collection: CardCollection) -> dict:
             {"kind": g.kind, "reason": g.reason, "detail": g.detail}
             for g in draft.card.media.gaps
         ],
-        "css": _STYLES[draft.kind](),
+        "css": card_css(draft.kind),
         "cards": cards,
         "form": describe(draft.card.model, _form(draft.kind, draft.card)),
         "note_id": draft.note_id,
