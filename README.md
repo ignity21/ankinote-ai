@@ -67,8 +67,9 @@ open, and leave the backend on *AnkiConnect*. See
 - 📝 **Dual-Direction Cards** - Supports both word→definition and definition→word learning modes
 - 🎨 **Beautiful Templates** - Built-in Light/Dark mode responsive card templates
 - ⚡ **Batch Processing** - Generate multiple cards from word lists efficiently (CLI)
-- 🌐 **Multi-Language** - Learn English, French, Spanish, German, or Japanese,
-  with explanations in any of those or Chinese and Korean
+- 🌐 **Multi-Language** - Learn English, French, Spanish, German, Japanese,
+  Chinese (Simplified or Traditional, with pinyin), or Korean (beta), with
+  explanations in any other of them
 - 🧮 **STEM Concepts** - Math, science, and programming concept cards with MathJax rendering
 
 AnkiNote has two front ends that share the same card-generation engine and the

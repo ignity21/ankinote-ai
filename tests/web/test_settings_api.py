@@ -122,10 +122,17 @@ def test_patch_settings_saves_languages(client: TestClient) -> None:
 
 
 def test_patch_settings_rejects_unsupported_target(client: TestClient) -> None:
-    response = client.patch("/api/settings", json={"target_language": "Korean"})
+    response = client.patch("/api/settings", json={"target_language": "other"})
 
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "not_target"
+
+
+def test_patch_settings_accepts_korean_as_target(client: TestClient) -> None:
+    response = client.patch("/api/settings", json={"target_language": "Korean"})
+
+    assert response.status_code == 200
+    assert load_settings().defaults.target_language == "Korean"
 
 
 def test_patch_settings_rejects_learning_your_own_language(client: TestClient) -> None:
@@ -168,8 +175,11 @@ def test_languages_lists_choices_and_the_saved_pair(client: TestClient) -> None:
         "Spanish",
         "German",
         "Japanese",
+        "Chinese(Simplified)",
+        "Chinese(Traditional)",
+        "Korean",
     ]
-    assert all(t["beta"] is False for t in body["targets"])
+    assert [t["id"] for t in body["targets"] if t["beta"]] == ["Korean"]
 
 
 def test_providers_lists_presets_with_recommended_first(client: TestClient) -> None:

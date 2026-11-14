@@ -134,6 +134,7 @@ class DummyMediaService:
 
 def _build_collection(
     target_language: Language,
+    native: Language = Language.CHINESE_S,
 ) -> tuple[WordCollection, RecordingModelService]:
     models = RecordingModelService()
     client = cast(
@@ -147,7 +148,7 @@ def _build_collection(
     )
     collection = WordCollection(
         client,
-        native_language=Language.CHINESE_S,
+        native_language=native,
         target_language=target_language,
         text_model="word-model",
         text_service=cast(TextGenerationService, DummyTextService()),
@@ -339,6 +340,69 @@ def test_convert_to_note_type_renders_ruby_for_japanese():
     )
     assert "<ruby>意味<rt>いみ</rt></ruby>" in note["confusions"]
     assert "中文里常作招财摆件理解" in note["confusions"]
+
+
+def test_convert_to_note_type_renders_pinyin_ruby_for_chinese():
+    collection, _ = _build_collection(Language.CHINESE_S, native=Language.ENGLISH)
+    note = collection._convert_to_note_type(
+        WordModel(
+            lemma="学习",
+            part_of_speech="动词",
+            pronunciation="xuéxí",
+            difficulty="HSK1",
+            morphology=None,
+            core_meaning=Sense(
+                target_text="<获:huò><得:dé><知:zhī><识:shi>",
+                native_text="to study",
+            ),
+            examples=[
+                Example(
+                    sentence="<我:wǒ><在:zài><学:xué><习:xí><中:zhōng><文:wén>。",
+                    translation="I am studying Chinese.",
+                    highlights=["<学:xué><习:xí>", "<中:zhōng><文:wén>"],
+                )
+            ],
+            collocations=["<学:xué><习:xí><中:zhōng><文:wén>"],
+        ),
+        MediaReferences(headword_audio=None, example_audios=[], images={}),
+    )
+
+    assert note["pronunciation"] == "xuéxí"
+    assert "<ruby>获<rt>huò</rt></ruby>" in note["core_meaning"]
+    assert (
+        "<span class='example-highlight'><ruby>中<rt>zhōng</rt></ruby>"
+        "<ruby>文<rt>wén</rt></ruby></span>"
+    ) in note["examples"]
+    assert "<ruby>文<rt>wén</rt></ruby>" in note["collocations"]
+
+
+def test_convert_to_note_type_keeps_korean_as_plain_text():
+    collection, _ = _build_collection(Language.KOREAN, native=Language.ENGLISH)
+    note = collection._convert_to_note_type(
+        WordModel(
+            lemma="읽다",
+            part_of_speech="동사",
+            pronunciation="[익따] ikda",
+            difficulty="TOPIK1",
+            morphology="읽어요, 읽었어요",
+            core_meaning=Sense(
+                target_text="글을 보고 뜻을 알다 <책>", native_text="to read"
+            ),
+            examples=[
+                Example(
+                    sentence="저는 매일 책을 읽어요.",
+                    translation="I read a book every day.",
+                    highlights=["읽어요"],
+                )
+            ],
+            collocations=["책을 읽다"],
+        ),
+        MediaReferences(headword_audio=None, example_audios=[], images={}),
+    )
+
+    assert "<ruby>" not in note["core_meaning"] + note["examples"]
+    assert "&lt;책&gt;" in note["core_meaning"]
+    assert "<span class='example-highlight'>읽어요</span>" in note["examples"]
 
 
 @pytest.mark.asyncio

@@ -32,6 +32,9 @@ _LANGUAGE_TO_FILENAME: dict[Language, str] = {
     Language.SPANISH: "latin_alphabet.md",
     Language.GERMAN: "latin_alphabet.md",
     Language.JAPANESE: "japanese.md",
+    Language.CHINESE_S: "chinese.md",
+    Language.CHINESE_T: "chinese.md",
+    Language.KOREAN: "korean.md",
 }
 
 _load_prompt_template = create_prompt_loader(

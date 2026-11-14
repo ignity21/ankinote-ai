@@ -16,11 +16,13 @@ class Language(StrEnum):
     OTHER = "other"
 
 
+# Targets whose prompts annotate characters with readings (<字:reading>), so
+# cards render that text as ruby. Korean isn't one: Hangul reads as written,
+# and its hanja go into the memory hook instead.
 RUBY_ANNOTATION_LANGUAGES = {
     Language.JAPANESE,
     Language.CHINESE_S,
     Language.CHINESE_T,
-    Language.KOREAN,
 }
 
 # Languages selectable as the "target" (language being learned): every
@@ -32,6 +34,9 @@ TARGET_LANGUAGES = (
     Language.SPANISH,
     Language.GERMAN,
     Language.JAPANESE,
+    Language.CHINESE_S,
+    Language.CHINESE_T,
+    Language.KOREAN,
 )
 
 # Languages selectable as "native" (the one cards explain in).

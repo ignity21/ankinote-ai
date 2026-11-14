@@ -176,6 +176,16 @@ So "any pair" only needs Chinese and Korean added as targets.
 2. **Korean as target**: new `korean.md` prompts; TOPIK levels; decide whether
    Korean needs ruby at all (hanja glosses only where they aid memory).
    Ship labelled beta until a competent reader has reviewed sample output.
+   Done 2026-11-14 on `feat/1.0`: `chinese.md` and `korean.md` prompts for
+   word, phrase and sentence; Simplified and Traditional share one prompt and
+   the request names the script (Traditional uses Taiwan usage and readings).
+   Chinese pinyin goes per character as `<字:pinyin>` ruby with citation
+   tones; HSK 1–6 and 7–9. Decided: Korean gets no ruby — Hangul reads as
+   written — so it left `RUBY_ANNOTATION_LANGUAGES` and renders escaped like
+   the Latin targets; pronunciation is Revised Romanization, with the Hangul
+   standard pronunciation in brackets when sound changes differ from the
+   spelling; hanja of Sino-Korean words go in the memory hook; TOPIK 1–6.
+   Not yet run against a live model; item 4's review is still to do.
 3. **Pair validation**: reject native == target; treat Simplified/Traditional
    as distinct natives but one learning direction.
    Done 2026-11-13 on `feat/1.0`: `consts.language_pair_error` (codes

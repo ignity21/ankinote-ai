@@ -17,8 +17,9 @@ def test_every_real_language_can_be_native() -> None:
 
 @pytest.mark.parametrize("target", TARGET_LANGUAGES)
 def test_any_other_native_pairs_with_a_target(target: Language) -> None:
+    chinese = {Language.CHINESE_S, Language.CHINESE_T}
     for native in NATIVE_LANGUAGES:
-        if native != target:
+        if native != target and {native, target} != chinese:
             assert language_pair_error(native, target) is None
 
 

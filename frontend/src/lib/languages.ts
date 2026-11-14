@@ -39,7 +39,7 @@ export const SAMPLE_WORD: Record<string, { word: string; sound: string }> = {
   Japanese: { word: "月", sound: "つき" },
   "Chinese(Simplified)": { word: "月亮", sound: "yuèliang" },
   "Chinese(Traditional)": { word: "月亮", sound: "yuèliang" },
-  Korean: { word: "달", sound: "/tal/" },
+  Korean: { word: "달", sound: "dal" },
 };
 
 export const SAMPLE_MEANING: Record<string, string> = {
