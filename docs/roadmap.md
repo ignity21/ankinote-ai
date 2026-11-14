@@ -179,6 +179,96 @@ directly.)
      migration (field changes force a full AnkiWeb sync), and 1.0 imports a
      0.x `settings.json`.
 
+## 2.0 candidate: custom card types with AI-assisted authoring
+
+Idea raised 2026-11-14; not scheduled. 1.0 (languages, themes, launch) comes
+first and is not to be derailed by it.
+
+Users define their own card types — fields, templates, style — plus the
+instructions used to generate them, and AI helps write and tune them. This
+widens the audience from language and STEM learners to any domain (medicine,
+law, programming, certifications) and to heavy Anki users who already have
+their own note types.
+
+It reverses a 1.0 position ("the fixed prompts and note types are the
+product"; free-form prompt/template editing is not planned). Taking it on
+means repositioning 2.0 from "good cards out of the box" to "a card
+generation platform", decided deliberately.
+
+### Card type spec
+
+A declarative, shareable file per card type:
+
+```yaml
+name: Drug Card
+input: "drug name"              # what the user types
+fields:
+  - name: Drug
+    source: input
+  - name: Class
+    source: generated
+    description: "pharmacological class, one short phrase"
+  - name: SideEffects
+    source: generated
+    kind: list                  # rendered as <ul> by the template
+    description: "the 3–5 most common side effects"
+  - name: Audio
+    source: tts(Drug)
+  - name: Picture
+    source: image(Drug)
+prompt: "For pharmacy students…"  # overall instructions
+templates: [...]                # front/back in Anki template syntax
+css: ...                        # or references to theme tokens only
+```
+
+- The JSON schema for structured output is derived from `fields`; the prompt
+  is a fixed system part + field descriptions + the user's instructions +
+  examples.
+- Media fields (`tts`, `image`) reuse the existing `MediaGap` degradation.
+- Fields hold content only; presentation belongs to the template. Built-in
+  collections today bake HTML into fields at generation time (`meaning-row`,
+  `*-chip`, ruby conversion), which a user-defined type can't rely on.
+- Test of the design: re-express the four built-in kinds as specs. What can't
+  be expressed (ruby text, highlighted example sentences, several records per
+  query) shows which field `kind`s are missing. Ideally built-ins end up as
+  spec files too.
+
+### AI-assisted authoring: iterate on sample cards, not on the prompt
+
+Users can't judge a prompt but can judge a card at a glance.
+
+1. Start from one of: a one-line description of the goal; an existing Anki
+   note type imported from the collection (fields, templates and CSS are
+   already readable, and its existing notes are the best few-shot examples);
+   a gallery template.
+2. AI drafts the spec and immediately generates about three sample cards with
+   the real model, shown in the card preview.
+3. The user critiques the samples ("side effects too long", "add a
+   mnemonic"); AI revises the *spec*, not the cards, regenerates the samples,
+   and shows them against the previous version.
+4. The sample inputs become a regression set, re-run whenever the spec
+   changes.
+
+### Sharing
+
+A spec is one file: export, import, and possibly a community gallery like
+AnkiWeb shared decks, which doubles as a promotion channel.
+
+### Risks
+
+- Quality: bad custom types produce bad cards that reflect on the tool; the
+  AI-assisted loop is what makes the feature viable, not an extra.
+- Changing a type's fields forces a full AnkiWeb sync once it is in use; the
+  editor must say so before applying.
+- User templates and CSS run in the preview; keep it sandboxed as today.
+
+### Preparation during 1.0
+
+- New collection code should keep content and presentation apart where it
+  costs little, to ease the move.
+- First 2.0 step is not UI: express the built-in types as specs to validate
+  the format.
+
 ## Future major version: deployable web service
 
 Explore evolving ankinote from a local CLI/NiceGUI application into a web
