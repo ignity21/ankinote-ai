@@ -234,6 +234,8 @@ is dropped rather than kept as a fifth theme. Items 1–4 are done
 the "Card theme" entry on the Note types page); the full-sync question is
 answered (CSS edits leave the schema time alone, so a normal sync carries
 them). Not yet checked on a real AnkiWeb account, AnkiDroid or AnkiMobile.
+2026-11-14: the wizard's Appearance step sets the card theme to the palette
+chosen there (light and dark); Settings → Appearance leaves it alone.
 
 ## Phase 4 — Showcase and launch (S–M)
 

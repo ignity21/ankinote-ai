@@ -80,17 +80,24 @@ class CardThemeChoice {
     }
   }
 
+  /** Saves a theme and restyles the note types Anki has; used by Apply and the wizard. */
+  async save(choice: CardTheme): Promise<CardThemeSaved> {
+    const result = await api.saveCardTheme(choice);
+    this.saved = { light: result.light, dark: result.dark };
+    this.light = result.light;
+    this.dark = result.dark;
+    // Samples on the Note types page were drawn in the old theme.
+    noteTypes.samples = {};
+    void noteTypes.check();
+    return result;
+  }
+
   async apply() {
     if (this.busy || !this.changed) return;
     this.busy = true;
     this.saveError = false;
     try {
-      const result = await api.saveCardTheme({ light: this.light, dark: this.dark });
-      this.saved = { light: result.light, dark: result.dark };
-      this.outcome = result;
-      // Samples on the rest of the page were drawn in the old theme.
-      noteTypes.samples = {};
-      void noteTypes.check();
+      this.outcome = await this.save({ light: this.light, dark: this.dark });
     } catch (error) {
       this.saveError = true;
       if (!(error instanceof ApiError)) console.error(error);

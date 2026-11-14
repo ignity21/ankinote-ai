@@ -278,7 +278,12 @@ be revisited); phone shows "Step 2 of 5" with a segmented progress bar.
    currently showing) and a one-line note on where it comes from; mode is a
    three-way segment. Skip puts back the palette and mode the user had when
    the step opened. The choice is kept in the browser, like the top-bar
-   switches; it isn't in `settings.json` yet.
+   switches; it isn't in `settings.json` yet. Next also gives the cards
+   that palette for both light and night mode (`PUT /api/card-theme`,
+   restyling the note types Anki already has), and a note under the tiles
+   says so; Skip leaves the card theme alone. In Settings → Appearance the
+   app palette and the card theme stay separate: a note links to Note
+   types → Card theme instead.
 5. **First card.** Generate a sample word, preview it, save it to Anki; the
    wizard ends on the saved confirmation.
    Built 2026-11-13: the word field starts with the target language's sample

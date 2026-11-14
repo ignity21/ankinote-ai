@@ -1,6 +1,8 @@
 <script lang="ts">
   import StepNav from "../../components/StepNav.svelte";
+  import { cardTheme } from "../../lib/cardTheme.svelte";
   import { t, type MessageKey } from "../../lib/i18n.svelte";
+  import { link } from "../../lib/router.svelte";
   import { palettes, theme, type Mode } from "../../lib/theme.svelte";
 
   /** `settings`: Settings → Appearance; choices apply as they're made, so no footer. */
@@ -19,6 +21,23 @@
     theme.palette = entry.palette;
     theme.mode = entry.mode;
     onnext();
+  }
+
+  let saving = $state(false);
+  let saveError = $state(false);
+
+  /** Next gives the cards the app's palette, light and dark alike. Skip leaves them alone. */
+  async function next() {
+    saving = true;
+    saveError = false;
+    try {
+      await cardTheme.save({ light: theme.palette, dark: theme.palette });
+      onnext();
+    } catch {
+      saveError = true;
+    } finally {
+      saving = false;
+    }
   }
 
   /** The palette's own colours, so each swatch previews itself. */
@@ -60,6 +79,14 @@
       </label>
     {/each}
   </div>
+  {#if settings}
+    <p class="note">
+      {t("appearance.cardsSeparate")}
+      <a href="/notetypes/theme" onclick={link}>{t("appearance.cardsLink")}</a>
+    </p>
+  {:else}
+    <p class="note">{t("appearance.cardsToo")}</p>
+  {/if}
 </fieldset>
 
 <fieldset>
@@ -88,12 +115,20 @@
 {#if settings}
   <p class="note browser">{t("appearance.browserNote")}</p>
 {:else}
-  <StepNav {onback} onskip={skip} {onnext} hint={t("appearance.skipNote")} />
+  {#if saveError}
+    <p class="error" role="alert">{t("appearance.cardsError")}</p>
+  {/if}
+  <StepNav {onback} onskip={skip} onnext={next} busy={saving} hint={t("appearance.skipNote")} />
 {/if}
 
 <style>
   .browser {
     margin-top: 20px;
+  }
+
+  .error {
+    margin: 0 0 12px;
+    color: var(--err);
   }
 
   .intro {
