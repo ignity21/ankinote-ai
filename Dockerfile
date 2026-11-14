@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# Runs the ankinote web GUI. The image installs a published release straight from
+# Runs the ankinote web app (`ankinote-web`). The image installs a published release straight from
 # PyPI, so its contents match `pip install 'ankinote-ai[headless]==<version>'`
 # exactly. The `headless` extra bundles the `anki` library so the in-process
 # collection backend (ANKI_BACKEND=collection) works out of the box; the image
@@ -15,9 +15,6 @@ RUN test -n "$ANKINOTE_VERSION" || (echo "ANKINOTE_VERSION build-arg is required
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     XDG_CONFIG_HOME=/config \
-    ANKINOTE_HOST=0.0.0.0 \
-    ANKINOTE_PORT=8080 \
-    ANKINOTE_SHOW=false \
     ANKI_CONNECT_URL=http://host.docker.internal:8765
 
 RUN pip install --no-cache-dir "ankinote-ai[headless]==${ANKINOTE_VERSION}"
@@ -34,4 +31,4 @@ VOLUME ["/config"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD ["python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/').status == 200 else 1)"]
 
-CMD ["ankinote-gui"]
+CMD ["ankinote-web", "--host", "0.0.0.0", "--port", "8080"]
