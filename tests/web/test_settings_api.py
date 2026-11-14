@@ -201,6 +201,32 @@ def test_put_models_saves_one_key_for_every_route(client: TestClient) -> None:
     assert saved.speech_providers["Gemini"].preset == "gemini"
 
 
+def _bare_gemini_routes() -> dict:
+    """Model ids as Google lists them, without LiteLLM's ``gemini/`` prefix."""
+    routes = _gemini_routes()
+    for draft in routes.values():
+        draft["model"] = draft["model"].removeprefix(GEMINI.model_prefix)
+    return routes
+
+
+def test_put_models_adds_the_provider_prefix_to_a_bare_id(client: TestClient) -> None:
+    body = client.put("/api/models", json=_bare_gemini_routes()).json()
+
+    for route in ("text", "image", "speech"):
+        assert body["models"][route]["model"] == GEMINI.models[route]
+        assert body["models"][route]["follows_preset"] is True
+
+
+def test_connection_check_adds_the_provider_prefix_to_a_bare_id(
+    client: TestClient, provider: dict[str, Any]
+) -> None:
+    """A bare ``gemini-…`` id made LiteLLM go to Vertex AI, not AI Studio."""
+    body = client.post("/api/models/test", json=_bare_gemini_routes()).json()
+
+    assert provider["completions"][0]["model"] == GEMINI.models["text"]
+    assert body["text"]["model"] == GEMINI.models["text"]
+
+
 def test_put_models_never_returns_the_key(client: TestClient) -> None:
     response = client.put("/api/models", json=_gemini_routes())
 

@@ -136,6 +136,10 @@ def draft_to_profile(
     model = draft.model.strip()
     if not model:
         raise InvalidDraftError(route, "no model")
+    # Providers list ids without LiteLLM's prefix; a bare "gemini-…" would
+    # be sent to Vertex AI instead of AI Studio.
+    if not model.startswith(preset.model_prefix):
+        model = preset.model_prefix + model
     base_url = (draft.base_url.strip() if preset.id == CUSTOM_PRESET else "") or (
         preset.base_url
     )
