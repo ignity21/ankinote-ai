@@ -1,5 +1,5 @@
 {
-  "default": "kanagawa",
+  "default": "rose-pine",
   "roles": ["outer", "tile", "border", "fg", "muted", "accent", "accent2", "ok", "warn", "err", "sel", "on-accent"],
   "palettes": {
     "kanagawa": {

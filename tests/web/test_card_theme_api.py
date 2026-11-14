@@ -13,7 +13,7 @@ from tests.web.anki_fakes import builtin, login
 
 async def test_default_theme_is_the_default_palette(api: httpx.AsyncClient) -> None:
     body = (await api.get("/api/card-theme")).json()
-    assert (body["light"], body["dark"]) == ("kanagawa", "kanagawa")
+    assert (body["light"], body["dark"]) == ("rose-pine", "rose-pine")
     assert body["palettes"] == ["kanagawa", "tokyo-night", "gruvbox", "rose-pine"]
 
 
@@ -66,7 +66,7 @@ async def test_unknown_palette_is_refused(api: httpx.AsyncClient) -> None:
         "/api/card-theme", json={"light": "solarized", "dark": "kanagawa"}
     )
     assert response.status_code == 422
-    assert (await api.get("/api/card-theme")).json()["light"] == "kanagawa"
+    assert (await api.get("/api/card-theme")).json()["light"] == "rose-pine"
 
 
 async def test_sample_previews_a_theme_before_it_is_saved(
@@ -74,8 +74,8 @@ async def test_sample_previews_a_theme_before_it_is_saved(
 ) -> None:
     saved = (await api.get("/api/note-types/word/sample")).json()["css"]
     preview = (await api.get("/api/note-types/word/sample?light=gruvbox")).json()
-    assert "light: kanagawa" in saved
-    assert "light: gruvbox · dark: kanagawa" in preview["css"]
+    assert "light: rose-pine" in saved
+    assert "light: gruvbox · dark: rose-pine" in preview["css"]
     assert (
         preview["cards"]
         == (await api.get("/api/note-types/word/sample")).json()["cards"]

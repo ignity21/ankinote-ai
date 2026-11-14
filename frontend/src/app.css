@@ -13,10 +13,10 @@
   --sans: "IBM Plex Sans", var(--cjk), sans-serif;
   --mono: "IBM Plex Mono", var(--cjk), monospace;
   --gap: 10px;
-  /* Pre-JS fallback (Kanagawa dark) so the first paint isn't white. */
-  --outer: #16161d;
-  --tile: #1f1f28;
-  --fg: #dcd7ba;
+  /* Pre-JS fallback (Rosé Pine dark) so the first paint isn't white. */
+  --outer: #191724;
+  --tile: #1f1d2e;
+  --fg: #e0def4;
 }
 
 /* Text marked as Japanese, Korean or Traditional Chinese gets that

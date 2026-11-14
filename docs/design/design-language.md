@@ -29,7 +29,7 @@ preview they generated them in.
 ## Palettes
 
 Each palette defines the same 12 roles, in light and dark. Default palette
-is Kanagawa; default mode follows the system.
+is Rosé Pine; default mode follows the system.
 
 | Role | Use |
 | --- | --- |

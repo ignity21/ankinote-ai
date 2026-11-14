@@ -228,7 +228,7 @@ Done when: switching theme in the UI restyles existing cards on all clients
 after a normal sync, with light and dark chosen separately.
 
 Built 2026-11-13 on `feat/1.0`. Decided with the project owner the same
-day: the four app palettes only (Kanagawa default); the 0.x "paper" look
+day: the four app palettes only (Kanagawa default at first, Rosé Pine since 2026-11-14); the 0.x "paper" look
 is dropped rather than kept as a fifth theme. Items 1–4 are done
 (`card_theme.py`, `Settings.card_theme_light/dark`, `PUT /api/card-theme`,
 the "Card theme" entry on the Note types page); the full-sync question is
