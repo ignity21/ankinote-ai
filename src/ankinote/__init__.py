@@ -1,2 +1,2 @@
-__version__ = "0.6.5"
+__version__ = "1.0.0"
 __name__ = "ankinote"
