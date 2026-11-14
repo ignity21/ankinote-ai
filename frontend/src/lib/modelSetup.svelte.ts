@@ -29,10 +29,12 @@ export type RouteState = {
   baseUrl: string;
   options: string[];
   optionsLoading: boolean;
+  /** The last model list request failed or came back empty. */
+  optionsFailed: boolean;
 };
 
 function emptyRoute(): RouteState {
-  return { provider: OFF, model: "", apiKey: "", baseUrl: "", options: [], optionsLoading: false };
+  return { provider: OFF, model: "", apiKey: "", baseUrl: "", options: [], optionsLoading: false, optionsFailed: false };
 }
 
 export class ModelSetup {
@@ -195,21 +197,31 @@ export class ModelSetup {
     };
   }
 
+  /** Whether there is a key (or, for a custom endpoint, an address) to list models with. */
+  canListOptions(route: Route): boolean {
+    const target = this.routeIn(route);
+    if (!target) return false;
+    if (target.provider === CUSTOM) return target.base_url !== "";
+    return Boolean(target.api_key) || this.savedKeyHint(target.provider) !== "";
+  }
+
   /** Fill a route's model suggestions from what the provider lists for this key. */
   async loadOptions(route: Route) {
     const target = this.routeIn(route);
     const r = this.routes[route];
-    if (!target || (!target.api_key && target.provider !== CUSTOM && !this.savedKeyHint(target.provider))) {
-      r.options = [];
+    r.optionsFailed = false;
+    if (!target || !this.canListOptions(route)) {
+      if (target?.provider !== CUSTOM) r.options = [];
       return;
     }
-    if (target.provider === CUSTOM && !target.base_url) return;
     r.optionsLoading = true;
     try {
       const list = await api.listModels(route, target);
       r.options = list.models;
+      r.optionsFailed = list.models.length === 0;
     } catch {
       r.options = [];
+      r.optionsFailed = true;
     } finally {
       r.optionsLoading = false;
     }
